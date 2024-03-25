@@ -1,0 +1,2 @@
+# Restaurant Management System
+This is a simple restaurant management system desined using go-lang for learning purposess. YouTube, GitHub and Official Documentation has been used while writing this application.
