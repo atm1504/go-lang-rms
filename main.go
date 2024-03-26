@@ -30,6 +30,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 	routes.UserRoutes(router)
+	routes.FoodRoutes(router)
 	// router.Use(middleware.Authentication())
 
 	router.Run(":" + port)
