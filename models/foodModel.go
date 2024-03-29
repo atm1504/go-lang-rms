@@ -7,12 +7,12 @@ import (
 )
 
 type Food struct {
-	id        primitive.ObjectID `bson:"_id"`
-	name      *string            `json:"name" validate:"required,min=2,max=100"`
-	price     *float64           `json:"price" validate:"required"`
-	foodImage *string            `json:"food_image" validate:"required"`
-	createdAt time.Time          `json:"created_at"`
-	updatedAt time.Time          `json:"updated_at"`
-	foodId    string             `json:"food_id"`
-	menuId    *string            `json:"menu_id" validate:"required"`
+	Id        primitive.ObjectID `bson:"_id"`
+	Name      *string            `json:"name" validate:"required,min=2,max=100"`
+	Price     *float64           `json:"price" validate:"required"`
+	FoodImage *string            `json:"food_image" validate:"required"`
+	CreatedAt time.Time          `json:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at"`
+	FoodId    string             `json:"food_id"`
+	MenuId    *string            `json:"menu_id" validate:"required"`
 }
