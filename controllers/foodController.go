@@ -3,8 +3,10 @@ package controller
 import (
 	"context"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"atm1504.in/rms/database"
@@ -22,6 +24,49 @@ var foodCollection *mongo.Collection = database.OpenCollection(database.Client, 
 var menuCollection *mongo.Collection = database.OpenCollection(database.Client, "menu")
 
 var validate = validator.New()
+
+func GetFoods() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+
+		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
+		if err != nil || recordPerPage < 1 {
+			recordPerPage = 10
+		}
+
+		page, err := strconv.Atoi(c.Query("page"))
+		if err != nil || page < 1 {
+			page = 1
+		}
+
+		startIndex := (page - 1) * recordPerPage
+		startIndex, err = strconv.Atoi(c.Query("startIndex"))
+
+		matchStage := bson.D{{Key: "$match", Value: bson.D{{}}}}
+		groupStage := bson.D{{"$group", bson.D{{"_id", bson.D{{"_id", "null"}}}, {"total_count", bson.D{{"$sum", 1}}}, {"data", bson.D{{Key: "$push", Value: "$$ROOT"}}}}}}
+		projectStage := bson.D{
+			{
+				Key: "$project", Value: bson.D{
+					{Key: "_id", Value: 0},
+					{Key: "total_count", Value: 1},
+					{Key: "food_items", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
+				}}}
+
+		result, err := foodCollection.Aggregate(ctx, mongo.Pipeline{
+			matchStage, groupStage, projectStage})
+		defer cancel()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing food items"})
+		}
+		var allFoods []bson.M
+		if err = result.All(ctx, &allFoods); err != nil {
+			log.Fatal(err)
+		}
+		c.JSON(http.StatusOK, allFoods[0])
+
+	}
+}
 
 func GetFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -86,7 +131,7 @@ func CreateFood() gin.HandlerFunc {
 		result, inserErr := foodCollection.InsertOne(ctx, food)
 
 		if inserErr != nil {
-			msg := fmt.Sprintf("Food item was not created")
+			msg := "Food item was not created"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
