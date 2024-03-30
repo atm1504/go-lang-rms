@@ -115,7 +115,7 @@ func CreateFood() gin.HandlerFunc {
 				})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"erroe": "Error in fetching menu details"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching menu details"})
 			return
 		}
 
