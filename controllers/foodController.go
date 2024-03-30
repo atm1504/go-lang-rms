@@ -3,13 +3,12 @@ package controller
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
 	"atm1504.in/rms/database"
 	"atm1504.in/rms/models"
-
-	//"atm1504.in/rms/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -64,7 +63,7 @@ func CreateFood() gin.HandlerFunc {
 			return
 		}
 
-		err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.menuId}).Decode(&menu)
+		err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuId}).Decode(&menu)
 		defer cancel()
 		if err != nil {
 			fmt.Println(err)
@@ -81,12 +80,12 @@ func CreateFood() gin.HandlerFunc {
 		food.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		food.Id = primitive.NewObjectID()
-		food.FoodId=food.Id.Hex()
+		food.FoodId = food.Id.Hex()
 		var num = toFixed(*food.Price, 2)
-		food.Price=&num
-		result, inserErr :=foodCollection.InsertOne(ctx,food)
+		food.Price = &num
+		result, inserErr := foodCollection.InsertOne(ctx, food)
 
-		if inserErr!=nil{
+		if inserErr != nil {
 			msg := fmt.Sprintf("Food item was not created")
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
@@ -96,81 +95,83 @@ func CreateFood() gin.HandlerFunc {
 		c.JSON(http.StatusOK, result)
 
 	}
+}
 
-	func round(num float64) int {
-		return int(num + math.Copysign(0.5, num))
-	}
-	
-	func toFixed(num float64, precision int) float64 {
-		output := math.Pow(10, float64(precision))
-		return float64(round(num*output)) / output
-	}
+func round(num float64) int {
+	return int(num + math.Copysign(0.5, num))
+}
 
-	func UpdateFood() gin.HandlerFunc{
-		return func(c *gin.Context){
-		
-			var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-			var menu models.Menu
-			var food models.Food
+func toFixed(num float64, precision int) float64 {
+	output := math.Pow(10, float64(precision))
+	return float64(round(num*output)) / output
+}
 
-			foodId := c.Param("food_id")
+func UpdateFood() gin.HandlerFunc {
+	return func(c *gin.Context) {
 
-			if err:=c.BindJSON(&food): err!=nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-                return
-			}
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		var menu models.Menu
+		var food models.Food
 
-			var updateObj primitive.D
-			if food.Name!=nil{
-				updateObj = append(updateObj, bson.E{Key: "name", Value: food.Name})
-			}
-			if food.Price!=nil{
-                updateObj = append(updateObj, bson.E{Key: "price", Value: food.Price})
-            }
+		foodId := c.Param("food_id")
 
-			if food.FoodImage!=nil{
-				updateObj = append(updateObj, bson.E{Key: "food_image", Value: food.Price})
-			}
+		if err := c.BindJSON(&food); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			defer cancel()
+			return
+		}
 
-			if food.MenuId!=nil{
-				err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.Menu_id}).Decode(&menu)
-				defer cancel()
-				if err!= nil {
+		var updateObj primitive.D
+		if food.Name != nil {
+			updateObj = append(updateObj, bson.E{Key: "name", Value: food.Name})
+		}
+		if food.Price != nil {
+			updateObj = append(updateObj, bson.E{Key: "price", Value: food.Price})
+		}
 
-					if err == mongo.ErrNoDocuments {
-						msg := fmt.Sprintf("message:Menu was not found")
-						c.JSON(http.StatusNotFound, gin.H{"error": msg})
-						return
-					}
+		if food.FoodImage != nil {
+			updateObj = append(updateObj, bson.E{Key: "food_image", Value: food.Price})
+		}
 
-					msg:=fmt.Sprintf("Internal Server Error occurred: %m", err)
-					c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-					return				
-				}
-                updateObj = append(updateObj, bson.E{Key: "menu", Value: food.Price})
-            }
-			food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-			updateObj = append(updateObj, bson.E{Key: "updated_at", Value: food.UpdatedAt})
-
-			upsert :=true
-			filter :=bson.M{"food_id", foodId}
-			opt:=options.UpdateOptions{
-				Upsert: &upsert,
-			}
-
-			result, err :=foodCollection.UpdateOne(
-				ctx, filter, bson.D{
-					{"$set":updateObj},
-				},
-				&opt,
-			)
-
+		if food.MenuId != nil {
+			err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuId}).Decode(&menu)
+			defer cancel()
 			if err != nil {
-				msg := fmt.Sprint("food item update failed")
+
+				if err == mongo.ErrNoDocuments {
+					msg := "message:Menu was not found"
+					c.JSON(http.StatusNotFound, gin.H{"error": msg})
+					return
+				}
+
+				msg := fmt.Sprintf("Internal Server Error occurred: %m", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 				return
 			}
-			c.JSON(http.StatusOK, result)
+			updateObj = append(updateObj, bson.E{Key: "menu", Value: food.Price})
 		}
+		food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: food.UpdatedAt})
+
+		upsert := true
+		filter := bson.M{"food_id": foodId}
+		opt := options.UpdateOptions{
+			Upsert: &upsert,
+		}
+
+		result, err := foodCollection.UpdateOne(
+			ctx, filter, bson.D{
+				{Key: "$set", Value: updateObj},
+			},
+			&opt,
+		)
+
+		if err != nil {
+			msg := "food item update failed"
+			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+			defer cancel()
+			return
+		}
+		c.JSON(http.StatusOK, result)
 	}
 }
