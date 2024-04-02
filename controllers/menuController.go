@@ -81,7 +81,7 @@ func GetMenu() gin.HandlerFunc {
 		menuId := c.Param("menu_id")
 		fmt.Println("Menu id is: ", menuId)
 
-		err := menuCollection.FindOne(ctx, bson.M{"menuid": menuId}).Decode(&menu)
+		err := menuCollection.FindOne(ctx, bson.M{"menu_id": menuId}).Decode(&menu)
 		defer cancel()
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
