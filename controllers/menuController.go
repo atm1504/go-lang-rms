@@ -127,7 +127,7 @@ func CreateMenu() gin.HandlerFunc {
 }
 
 func inTimeSpan(start, end, check time.Time) bool {
-	return start.After(time.Now()) && end.After(start)
+	return check.After(start) && check.Before(end)
 }
 
 func UpdateMenu() gin.HandlerFunc {
