@@ -60,7 +60,13 @@ func GetFoods() gin.HandlerFunc {
 		if err = result.All(ctx, &allFoods); err != nil {
 			log.Fatal(err)
 		}
-		c.JSON(http.StatusOK, allFoods[0])
+		// c.JSON(http.StatusOK, allFoods[0])
+		// Assuming you want to return the list of menus directly
+		if len(allFoods) > 0 {
+			c.JSON(http.StatusOK, allFoods[0])
+		} else {
+			c.JSON(http.StatusOK, []interface{}{}) // Return an empty array if no menus
+		}
 
 	}
 }
@@ -171,7 +177,7 @@ func UpdateFood() gin.HandlerFunc {
 		}
 
 		if food.FoodImage != nil {
-			updateObj = append(updateObj, bson.E{Key: "food_image", Value: food.Price})
+			updateObj = append(updateObj, bson.E{Key: "food_image", Value: food.FoodImage})
 		}
 
 		if food.MenuId != nil {
@@ -189,7 +195,7 @@ func UpdateFood() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 				return
 			}
-			updateObj = append(updateObj, bson.E{Key: "menu", Value: food.Price})
+			updateObj = append(updateObj, bson.E{Key: "menu_id", Value: food.MenuId})
 		}
 		food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: food.UpdatedAt})

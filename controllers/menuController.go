@@ -52,6 +52,7 @@ func GetMenus() gin.HandlerFunc {
 		}
 
 		result, err := menuCollection.Aggregate(ctx, mongo.Pipeline{matchStage, groupStage, projectStage})
+		defer cancel()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while listing menus"})
 			return
@@ -64,8 +65,8 @@ func GetMenus() gin.HandlerFunc {
 		}
 
 		// Assuming you want to return the list of menus directly
-		if len(allMenus) > 0 && allMenus[0]["menus"] != nil {
-			c.JSON(http.StatusOK, allMenus[0]["menus"])
+		if len(allMenus) > 0 {
+			c.JSON(http.StatusOK, allMenus[0])
 		} else {
 			c.JSON(http.StatusOK, []interface{}{}) // Return an empty array if no menus
 		}
