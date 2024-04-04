@@ -33,6 +33,7 @@ func main() {
 	routes.FoodRoutes(router)
 	routes.MenuRoutes(router)
 	routes.OrderRoutes(router)
+	routes.TableRoutes(router)
 	// router.Use(middleware.Authentication())
 
 	router.Run(":" + port)
