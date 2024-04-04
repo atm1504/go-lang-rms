@@ -6,12 +6,16 @@ import (
 	"net/http"
 	"time"
 
+	"atm1504.in/rms/database"
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+var tableCollection *mongo.Collection = database.OpenCollection(database.Client, "table")
 
 func GetTables() gin.HandlerFunc {
 	return func(c *gin.Context) {
