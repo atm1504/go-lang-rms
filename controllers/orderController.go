@@ -18,6 +18,7 @@ import (
 )
 
 var orderCollection *mongo.Collection = database.OpenCollection(database.Client, "order")
+var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
 func GetOrders() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -207,4 +208,17 @@ func UpdateOrder() gin.HandlerFunc {
 		c.JSON(http.StatusOK, result)
 
 	}
+}
+
+func OrderItemOrderCreator(order models.Order) string {
+
+	order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+	order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+	order.Id = primitive.NewObjectID()
+	order.OrderId = order.Id.Hex()
+
+	orderCollection.InsertOne(ctx, order)
+	defer cancel()
+
+	return order.OrderId
 }

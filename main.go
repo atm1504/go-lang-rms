@@ -34,6 +34,7 @@ func main() {
 	routes.MenuRoutes(router)
 	routes.OrderRoutes(router)
 	routes.TableRoutes(router)
+	routes.OrderItemRoutes(router)
 	// router.Use(middleware.Authentication())
 
 	router.Run(":" + port)
