@@ -18,7 +18,7 @@ import (
 var orderItemCollection *mongo.Collection = database.OpenCollection(database.Client, "orderItem")
 
 type OrderItemPack struct {
-	TableID    *string            ` bson:"table_id" json:"table_id"`
+	TableID    *string            `bson:"table_id" json:"table_id"`
 	OrderItems []models.OrderItem `bson:"order_items" json:"order_items"`
 }
 
