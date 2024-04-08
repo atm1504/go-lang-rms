@@ -17,11 +17,11 @@ func DBinstance() *mongo.Client {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-	MongoDbUri := os.Getenv("MONGO_DB_URI")
-	fmt.Println("URL is: " + MongoDbUri)
+	MongoDbURI := os.Getenv("MONGO_DB_URI")
+	fmt.Println("URL is: " + MongoDbURI)
 
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
-	opts := options.Client().ApplyURI(MongoDbUri).SetServerAPIOptions(serverAPI)
+	opts := options.Client().ApplyURI(MongoDbURI).SetServerAPIOptions(serverAPI)
 
 	// Create a new client and connect to the server
 	client, err := mongo.Connect(context.TODO(), opts)
@@ -31,7 +31,7 @@ func DBinstance() *mongo.Client {
 
 	// Send a ping to confirm a successful connection
 	var result bson.M
-	if err := client.Database("admin").RunCommand(context.TODO(), bson.D{{"ping", 1}}).Decode(&result); err != nil {
+	if err := client.Database("admin").RunCommand(context.TODO(), bson.D{{Key: "ping", Value: 1}}).Decode(&result); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
 	fmt.Println("Pinged your deployment. You successfully connected to MongoDB!")

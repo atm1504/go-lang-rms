@@ -78,10 +78,10 @@ func GetOrder() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		var order models.Order
 
-		orderId := c.Param("order_id")
-		fmt.Println("Order id is: ", orderId)
+		orderID := c.Param("order_id")
+		fmt.Println("Order id is: ", orderID)
 
-		err := orderCollection.FindOne(ctx, bson.M{"order_id": orderId}).Decode(&order)
+		err := orderCollection.FindOne(ctx, bson.M{"order_id": orderID}).Decode(&order)
 		defer cancel()
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
@@ -116,8 +116,8 @@ func CreateOrder() gin.HandlerFunc {
 			return
 		}
 
-		if order.TableId != nil {
-			err := tableCollection.FindOne(context.Background(), bson.M{"table_id": order.TableId}).Decode(&table)
+		if order.TableID != nil {
+			err := tableCollection.FindOne(context.Background(), bson.M{"table_id": order.TableID}).Decode(&table)
 			defer cancel()
 			if err != nil {
 				if err == mongo.ErrNoDocuments {
@@ -134,8 +134,8 @@ func CreateOrder() gin.HandlerFunc {
 		order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 
-		order.Id = primitive.NewObjectID()
-		order.OrderId = order.Id.Hex()
+		order.ID = primitive.NewObjectID()
+		order.OrderID = order.ID.Hex()
 
 		result, insertErr := orderCollection.InsertOne(ctx, order)
 		defer cancel()
@@ -159,7 +159,7 @@ func UpdateOrder() gin.HandlerFunc {
 
 		var updateObj primitive.D
 
-		orderId := c.Param("order_id")
+		orderID := c.Param("order_id")
 
 		if err := c.BindJSON(&order); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -167,8 +167,8 @@ func UpdateOrder() gin.HandlerFunc {
 			return
 		}
 
-		if order.TableId != nil {
-			err := tableCollection.FindOne(ctx, bson.M{"table_id": order.TableId}).Decode(&table)
+		if order.TableID != nil {
+			err := tableCollection.FindOne(ctx, bson.M{"table_id": order.TableID}).Decode(&table)
 			defer cancel()
 			if err != nil {
 				if err == mongo.ErrNoDocuments {
@@ -180,14 +180,14 @@ func UpdateOrder() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details"})
 				return
 			}
-			updateObj = append(updateObj, bson.E{Key: "table_id", Value: order.TableId})
+			updateObj = append(updateObj, bson.E{Key: "table_id", Value: order.TableID})
 		}
 
 		order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: order.UpdatedAt})
 
 		upsert := true
-		filter := bson.M{"order_id": orderId}
+		filter := bson.M{"order_id": orderID}
 		opt := options.UpdateOptions{
 			Upsert: &upsert,
 		}
@@ -214,11 +214,14 @@ func OrderItemOrderCreator(order models.Order) string {
 
 	order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 	order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-	order.Id = primitive.NewObjectID()
-	order.OrderId = order.Id.Hex()
+	order.ID = primitive.NewObjectID()
+	order.OrderID = order.ID.Hex()
 
-	orderCollection.InsertOne(ctx, order)
+	err, _ := orderCollection.InsertOne(ctx, order)
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer cancel()
 
-	return order.OrderId
+	return order.OrderID
 }

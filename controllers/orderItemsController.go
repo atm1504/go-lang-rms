@@ -18,7 +18,7 @@ import (
 var orderItemCollection *mongo.Collection = database.OpenCollection(database.Client, "orderItem")
 
 type OrderItemPack struct {
-	TableId    *string            ` bson:"table_id" json:"table_id"`
+	TableID    *string            ` bson:"table_id" json:"table_id"`
 	OrderItems []models.OrderItem `bson:"order_items" json:"order_items"`
 }
 
@@ -45,10 +45,10 @@ func GetOrderItems() gin.HandlerFunc {
 func GetOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		orderItemId := c.Param("order_item_id")
+		orderItemID := c.Param("order_item_id")
 		var orderItem models.OrderItem
 
-		err := orderItemCollection.FindOne(ctx, bson.M{"order_item_id": orderItemId}).Decode(&orderItem)
+		err := orderItemCollection.FindOne(ctx, bson.M{"order_item_id": orderItemID}).Decode(&orderItem)
 		defer cancel()
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
@@ -66,9 +66,9 @@ func GetOrderItem() gin.HandlerFunc {
 
 func GetOrderItemsByOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		orderId := c.Param("order_id")
+		orderID := c.Param("order_id")
 
-		allOrderItems, err := ItemsByOrder(orderId)
+		allOrderItems, err := ItemsByOrder(orderID)
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing order items by order ID"})
@@ -158,11 +158,11 @@ func CreateOrderItem() gin.HandlerFunc {
 
 		order.OrderDate, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		orderItemsToBeInserted := []interface{}{}
-		order.TableId = orderItemPack.TableId
-		order_id := OrderItemOrderCreator(order)
+		order.TableID = orderItemPack.TableID
+		orderID := OrderItemOrderCreator(order)
 
 		for _, orderItem := range orderItemPack.OrderItems {
-			orderItem.OrderId = order_id
+			orderItem.OrderID = orderID
 			validationErr := validate.Struct((orderItem))
 			if validationErr != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
@@ -171,8 +171,8 @@ func CreateOrderItem() gin.HandlerFunc {
 			}
 			orderItem.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 			orderItem.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-			orderItem.Id = primitive.NewObjectID()
-			orderItem.OrderItemId = orderItem.Id.Hex()
+			orderItem.ID = primitive.NewObjectID()
+			orderItem.OrderItemID = orderItem.ID.Hex()
 			var num = toFixed(*orderItem.UnitPrice, 2)
 			orderItem.UnitPrice = &num
 			orderItemsToBeInserted = append(orderItemsToBeInserted, orderItem)
@@ -190,22 +190,22 @@ func UpdateOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		var orderItem models.OrderItem
-		orderItemId := c.Param("order_item_id")
+		orderItemID := c.Param("order_item_id")
 
-		filter := bson.M{"order_item_id": orderItemId}
+		filter := bson.M{"order_item_id": orderItemID}
 		var updateObj primitive.D
 		if orderItem.UnitPrice != nil {
-			updateObj = append(updateObj, bson.E{"unit_price", orderItem.UnitPrice})
+			updateObj = append(updateObj, bson.E{Key: "unit_price", Value: orderItem.UnitPrice})
 		}
 		if orderItem.Quantity != nil {
-			updateObj = append(updateObj, bson.E{"quantity", orderItem.Quantity})
+			updateObj = append(updateObj, bson.E{Key: "quantity", Value: orderItem.Quantity})
 		}
-		if orderItem.FoodId != nil {
-			updateObj = append(updateObj, bson.E{"food_id", orderItem.FoodId})
+		if orderItem.FoodID != nil {
+			updateObj = append(updateObj, bson.E{Key: "food_id", Value: orderItem.FoodID})
 		}
 
 		orderItem.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		updateObj = append(updateObj, bson.E{"updated_at", orderItem.UpdatedAt})
+		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: orderItem.UpdatedAt})
 
 		upsert := true
 		opt := options.UpdateOptions{
@@ -213,7 +213,7 @@ func UpdateOrderItem() gin.HandlerFunc {
 		}
 
 		result, err := orderItemCollection.UpdateOne(ctx, filter, bson.D{
-			{"$set", updateObj},
+			{Key: "$set", Value: updateObj},
 		}, &opt)
 		defer cancel()
 		if err != nil {

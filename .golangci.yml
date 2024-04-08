@@ -1,0 +1,15 @@
+linters-settings:
+  # Specify your linters and their settings here
+  golint:
+    enabled: true
+  govet:
+    enabled: true
+  staticcheck:
+    enabled: true
+
+linters:
+  enable:
+    # Enable all linters by default
+    - golint
+    - govet
+    - staticcheck

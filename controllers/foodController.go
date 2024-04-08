@@ -38,7 +38,7 @@ func GetFoods() gin.HandlerFunc {
 		}
 
 		startIndex := (page - 1) * recordPerPage
-		startIndex, err = strconv.Atoi(c.Query("startIndex"))
+		// startIndex, _ := strconv.Atoi(c.Query("startIndex"))
 
 		matchStage := bson.D{{Key: "$match", Value: bson.D{{}}}}
 		groupStage := bson.D{{Key: "$group", Value: bson.D{{Key: "_id", Value: bson.D{{Key: "_id", Value: "null"}}}, {Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}}, {Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}}}}}
@@ -74,9 +74,9 @@ func GetFoods() gin.HandlerFunc {
 func GetFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		foodId := c.Param("food_id")
+		foodID := c.Param("food_id")
 		var food models.Food
-		err := foodCollection.FindOne(ctx, bson.M{"food_id": foodId}).Decode(&food)
+		err := foodCollection.FindOne(ctx, bson.M{"food_id": foodID}).Decode(&food)
 		// fmt.Println(food)
 		defer cancel()
 		if err != nil {
@@ -101,17 +101,19 @@ func CreateFood() gin.HandlerFunc {
 		var food models.Food
 
 		if err := c.BindJSON(&food); err != nil {
+			defer cancel()
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		validationErr := validate.Struct(food)
 		if validationErr != nil {
+			defer cancel()
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 			return
 		}
 
-		err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuId}).Decode(&menu)
+		err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuID}).Decode(&menu)
 		defer cancel()
 		if err != nil {
 			fmt.Println(err)
@@ -127,19 +129,18 @@ func CreateFood() gin.HandlerFunc {
 
 		food.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		food.Id = primitive.NewObjectID()
-		food.FoodId = food.Id.Hex()
+		food.ID = primitive.NewObjectID()
+		food.FoodID = food.ID.Hex()
 		var num = toFixed(*food.Price, 2)
 		food.Price = &num
 		result, inserErr := foodCollection.InsertOne(ctx, food)
-
+		defer cancel()
 		if inserErr != nil {
 			msg := "Food item was not created"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 			return
 		}
 
-		defer cancel()
 		c.JSON(http.StatusOK, result)
 
 	}
@@ -160,7 +161,7 @@ func UpdateFood() gin.HandlerFunc {
 		var menu models.Menu
 		var food models.Food
 
-		foodId := c.Param("food_id")
+		foodID := c.Param("food_id")
 
 		if err := c.BindJSON(&food); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -180,8 +181,8 @@ func UpdateFood() gin.HandlerFunc {
 			updateObj = append(updateObj, bson.E{Key: "food_image", Value: food.FoodImage})
 		}
 
-		if food.MenuId != nil {
-			err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuId}).Decode(&menu)
+		if food.MenuID != nil {
+			err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuID}).Decode(&menu)
 			defer cancel()
 			if err != nil {
 
@@ -195,13 +196,13 @@ func UpdateFood() gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 				return
 			}
-			updateObj = append(updateObj, bson.E{Key: "menu_id", Value: food.MenuId})
+			updateObj = append(updateObj, bson.E{Key: "menu_id", Value: food.MenuID})
 		}
 		food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: food.UpdatedAt})
 
 		upsert := true
-		filter := bson.M{"food_id": foodId}
+		filter := bson.M{"food_id": foodID}
 		opt := options.UpdateOptions{
 			Upsert: &upsert,
 		}
@@ -212,11 +213,11 @@ func UpdateFood() gin.HandlerFunc {
 			},
 			&opt,
 		)
-
+		defer cancel()
 		if err != nil {
 			msg := "food item update failed"
 			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			defer cancel()
+
 			return
 		}
 		c.JSON(http.StatusOK, result)

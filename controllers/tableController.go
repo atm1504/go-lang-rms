@@ -37,10 +37,10 @@ func GetTables() gin.HandlerFunc {
 func GetTable() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		tableId := c.Param("table_id")
+		tableID := c.Param("table_id")
 		var table models.Table
 
-		err := tableCollection.FindOne(ctx, bson.M{"table_id": tableId}).Decode(&table)
+		err := tableCollection.FindOne(ctx, bson.M{"table_id": tableID}).Decode(&table)
 		defer cancel()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while fetching the tables"})
@@ -72,8 +72,8 @@ func CreateTable() gin.HandlerFunc {
 		table.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 		table.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 
-		table.Id = primitive.NewObjectID()
-		table.TableId = table.Id.Hex()
+		table.ID = primitive.NewObjectID()
+		table.TableID = table.ID.Hex()
 
 		result, insertErr := tableCollection.InsertOne(ctx, table)
 		defer cancel()
@@ -91,7 +91,7 @@ func UpdateTable() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
 		var table models.Table
-		tableId := c.Param("table_id")
+		tableID := c.Param("table_id")
 
 		if err := c.BindJSON(&table); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -116,7 +116,7 @@ func UpdateTable() gin.HandlerFunc {
 			Upsert: &upsert,
 		}
 
-		filter := bson.M{"table_id": tableId}
+		filter := bson.M{"table_id": tableID}
 
 		result, err := tableCollection.UpdateOne(
 			ctx,

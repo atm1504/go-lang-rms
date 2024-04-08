@@ -7,9 +7,9 @@ import (
 )
 
 type Invoice struct {
-	Id             primitive.ObjectID `bson:"_id" json:"_id"`
-	InvoiceId      string             `bson:"invoice_id" json:"invoice_id"`
-	OrderId        string             `bson:"order_id" json:"order_id"`
+	ID             primitive.ObjectID `bson:"_id" json:"_id"`
+	InvoiceID      string             `bson:"invoice_id" json:"invoice_id"`
+	OrderID        string             `bson:"order_id" json:"order_id"`
 	PaymentMethod  *string            `bson:"payment_method" json:"payment_method" validate:"eq=CARD|eq=CASH|eq="`
 	PaymentStatus  *string            `bson:"payment_status" json:"payment_status" validate:"required,eq=PENDING|eq=PAID"`
 	PaymentDueDate time.Time          `bson:"payment_due_date" json:"payment_due_date"`

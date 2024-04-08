@@ -5,16 +5,13 @@ import (
 
 	"log"
 
-	"atm1504.in/rms/database"
-
 	routes "atm1504.in/rms/routes"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var foodCollection *mongo.Collection = database.OpenCollection(database.Client, "food")
+// var foodCollection *mongo.Collection = database.OpenCollection(database.Client, "food")
 
 func main() {
 	err := godotenv.Load()
@@ -37,5 +34,9 @@ func main() {
 	routes.OrderItemRoutes(router)
 	// router.Use(middleware.Authentication())
 
-	router.Run(":" + port)
+	runErr := router.Run(":" + port)
+	if runErr != nil {
+		// Handle the error, for example, log it or return it
+		log.Fatalf("Error starting server: %v", runErr)
+	}
 }
