@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -79,23 +80,45 @@ func GetMenu() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		var menu models.Menu
+		var startDateStr string
+		var endDateStr string
+		var createdAtStr string
+		var updatedAtStr string
 
 		menuID := c.Param("menu_id")
 		fmt.Println("Menu id is: ", menuID)
 
-		err := menuCollection.FindOne(ctx, bson.M{"menu_id": menuID}).Decode(&menu)
-		defer cancel()
-		if err != nil {
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{
-					"message": "Menu not found",
-				})
+		// err := menuCollection.FindOne(ctx, bson.M{"menu_id": menuID}).Decode(&menu)
+		row := dbConn.QueryRowContext(ctx, "SELECT * FROM menu WHERE id = ?", menuID)
+		if err := row.Scan(&menu.ID, &menu.Name, &menu.Category, &startDateStr, &endDateStr, &createdAtStr, &updatedAtStr); err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"erroe": "Error in fetching menu details"})
+			fmt.Println(err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching menu details"})
 			return
 		}
+
+		startDate, err := time.Parse("2006-01-02 15:04:05", startDateStr)
+		endDate, err := time.Parse("2006-01-02 15:04:05", endDateStr)
+		createdAt, err1 := time.Parse("2006-01-02 15:04:05", createdAtStr)
+		updatedAt, err1 := time.Parse("2006-01-02 15:04:05", updatedAtStr)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error parsing start/end date", "msg": err.Error()})
+			return
+		}
+		if err1 != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error parsing createdAt/updatedAt date"})
+			return
+		}
+		menu.StartDate = &startDate
+		menu.EndDate = &endDate
+		menu.CreatedAt = createdAt
+		menu.UpdatedAt = updatedAt
+
 		c.JSON(http.StatusOK, menu)
 	}
 }
