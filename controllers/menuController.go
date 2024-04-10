@@ -14,9 +14,7 @@ import (
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var menuCollection *mongo.Collection = database.OpenCollection(database.Client, "menu")
@@ -101,8 +99,7 @@ func GetMenu() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if dbErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error connecting to database"})
+		if HandleDBError(c, dbErr, "Error connecting to database") {
 			return
 		}
 		// defer dbConn.Close()
@@ -153,7 +150,6 @@ func CreateMenu() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error connecting to database"})
 			return
 		}
-		// defer dbConn.Close()
 
 		var menu models.Menu
 		if err := c.BindJSON(&menu); err != nil {
@@ -197,52 +193,59 @@ func inTimeSpan(start, end, check time.Time) bool {
 func UpdateMenu() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var menu models.Menu
+		defer cancel()
+		db, err := db.DBInstanceSql()
+		if HandleDBError(c, err, "Error connecting to database") {
+			return
+		}
+		defer db.Close()
 
+		var menu models.Menu
 		menuID := c.Param("menu_id")
-		filter := bson.M{"menu_id": menuID}
+
 		if err := c.BindJSON(&menu); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			defer cancel()
 			return
 		}
 
-		var updateObj primitive.D
 		if menu.StartDate != nil && menu.EndDate != nil {
 			if !inTimeSpan(*menu.StartDate, *menu.EndDate, time.Now()) {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Kindly enter valid time"})
 				defer cancel()
 				return
 			}
-			updateObj = append(updateObj, bson.E{Key: "start_date", Value: menu.StartDate})
-			updateObj = append(updateObj, bson.E{Key: "end_date", Value: menu.EndDate})
+			query := "UPDATE menu SET start_date=?, end_date=?"
+			values := []interface{}{menu.StartDate, menu.EndDate}
 
 			if menu.Name != "" {
-				updateObj = append(updateObj, bson.E{Key: "name", Value: menu.Name})
+				query += ", name=?"
+				values = append(values, menu.Name)
 			}
 
 			if menu.Category != "" {
-				updateObj = append(updateObj, bson.E{Key: "category", Value: menu.Category})
+				query += ", category=?"
+				values = append(values, menu.Category)
 			}
 
-			upsert := true
-			opt := options.UpdateOptions{Upsert: &upsert}
+			query += " WHERE id=?"
+			values = append(values, menuID)
 
-			result, err := menuCollection.UpdateOne(
-				ctx,
-				filter,
-				bson.D{
-					{Key: "$set", Value: updateObj},
-				},
-				&opt,
-			)
-			defer cancel()
+			// Execute the SQL UPDATE query
+			_, err := db.ExecContext(ctx, query, values...)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in updating menu"})
 				return
 			}
-			c.JSON(http.StatusOK, result)
+
+			c.JSON(http.StatusOK, gin.H{"message": "Menu updated successfully"})
+			return
 		}
 		defer cancel()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Start date and end date are required"})
+
 	}
+}
+
+func connectDB() {
+	panic("unimplemented")
 }
