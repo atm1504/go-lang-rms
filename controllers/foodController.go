@@ -11,9 +11,8 @@ import (
 	"time"
 
 	"atm1504.in/rms/database"
-	"atm1504.in/rms/models"
-
 	db "atm1504.in/rms/database"
+	"atm1504.in/rms/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -24,7 +23,8 @@ import (
 var foodCollection *mongo.Collection = database.OpenCollection(database.Client, "food")
 
 var validate = validator.New()
-var dbConn, dbErr = db.DBInstanceSql()
+
+// var dbConn, dbErr = db.DBInstanceSql()
 
 func GetFoods() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -99,6 +99,12 @@ func GetFood() gin.HandlerFunc {
 func CreateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+
+		var dbConn, dbErr = db.DBInstanceSql()
+		if dbErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error connecting to database"})
+			return
+		}
 		var menu models.Menu
 		var food models.Food
 

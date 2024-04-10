@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"atm1504.in/rms/database"
+	db "atm1504.in/rms/database"
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -21,6 +22,24 @@ import (
 var menuCollection *mongo.Collection = database.OpenCollection(database.Client, "menu")
 
 // var dbConn, dbErr = db.DBInstanceSql()
+
+func ParseTime(timeStr string) (time.Time, error) {
+	// Parse the time string into a time.Time object
+	parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsedTime, nil
+}
+
+// Function to handle database connection errors
+func HandleDBError(c *gin.Context, err error, errorMessage string) bool {
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage})
+		return true
+	}
+	return false
+}
 
 // var validate = validator.New()
 func GetMenus() gin.HandlerFunc {
@@ -81,6 +100,12 @@ func GetMenu() gin.HandlerFunc {
 
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
+		var dbConn, dbErr = db.DBInstanceSql()
+		if dbErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error connecting to database"})
+			return
+		}
+		// defer dbConn.Close()
 		var menu models.Menu
 		var startDateStr string
 		var endDateStr string
@@ -102,16 +127,12 @@ func GetMenu() gin.HandlerFunc {
 			return
 		}
 
-		startDate, err := time.Parse("2006-01-02 15:04:05", startDateStr)
-		endDate, err := time.Parse("2006-01-02 15:04:05", endDateStr)
-		createdAt, err1 := time.Parse("2006-01-02 15:04:05", createdAtStr)
-		updatedAt, err1 := time.Parse("2006-01-02 15:04:05", updatedAtStr)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error parsing start/end date", "msg": err.Error()})
-			return
-		}
-		if err1 != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error parsing createdAt/updatedAt date"})
+		startDate, err := ParseTime(startDateStr)
+		endDate, err := ParseTime(endDateStr)
+		createdAt, err1 := ParseTime(createdAtStr)
+		updatedAt, err1 := ParseTime(updatedAtStr)
+		if err != nil || err1 != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error parsing time strings"})
 			return
 		}
 		menu.StartDate = &startDate
@@ -126,6 +147,14 @@ func GetMenu() gin.HandlerFunc {
 func CreateMenu() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+		var dbConn, dbErr = db.DBInstanceSql()
+		if dbErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error connecting to database"})
+			return
+		}
+		// defer dbConn.Close()
+
 		var menu models.Menu
 		if err := c.BindJSON(&menu); err != nil {
 			defer cancel()
