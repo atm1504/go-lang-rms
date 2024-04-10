@@ -12,9 +12,7 @@ import (
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var orderCollection *mongo.Collection = database.OpenCollection(database.Client, "order")
@@ -99,129 +97,130 @@ func GetOrder() gin.HandlerFunc {
 
 func CreateOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var table models.Table
-		var order models.Order
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var table models.Table
+		// var order models.Order
 
-		if err := c.BindJSON(&order); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			defer cancel()
-			return
-		}
+		// if err := c.BindJSON(&order); err != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	defer cancel()
+		// 	return
+		// }
 
-		validationErr := validate.Struct(order)
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			defer cancel()
-			return
-		}
+		// validationErr := validate.Struct(order)
+		// if validationErr != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+		// 	defer cancel()
+		// 	return
+		// }
 
-		if order.TableID != nil {
-			err := tableCollection.FindOne(context.Background(), bson.M{"table_id": order.TableID}).Decode(&table)
-			defer cancel()
-			if err != nil {
-				if err == mongo.ErrNoDocuments {
-					c.JSON(http.StatusNotFound, gin.H{
-						"message": "Table data not found",
-					})
-					return
-				}
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details"})
-				return
-			}
-		}
+		// if order.TableID != nil {
+		// 	err := tableCollection.FindOne(context.Background(), bson.M{"table_id": order.TableID}).Decode(&table)
+		// 	defer cancel()
+		// 	if err != nil {
+		// 		if err == mongo.ErrNoDocuments {
+		// 			c.JSON(http.StatusNotFound, gin.H{
+		// 				"message": "Table data not found",
+		// 			})
+		// 			return
+		// 		}
+		// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details"})
+		// 		return
+		// 	}
+		// }
 
-		order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
 
-		order.ID = primitive.NewObjectID()
-		order.OrderID = order.ID.Hex()
+		// order.ID = primitive.NewObjectID()
+		// order.OrderID = order.ID.Hex()
 
-		result, insertErr := orderCollection.InsertOne(ctx, order)
-		defer cancel()
-		if insertErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "order item was not created"})
-			return
-		}
+		// result, insertErr := orderCollection.InsertOne(ctx, order)
+		// defer cancel()
+		// if insertErr != nil {
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "order item was not created"})
+		// 	return
+		// }
 
-		defer cancel()
-		c.JSON(http.StatusOK, result)
+		// defer cancel()
+		// c.JSON(http.StatusOK, result)
 
 	}
 }
 
 func UpdateOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
-		var table models.Table
-		var order models.Order
+		// var table models.Table
+		// var order models.Order
 
-		var updateObj primitive.D
+		// var updateObj primitive.D
 
-		orderID := c.Param("order_id")
+		// orderID := c.Param("order_id")
 
-		if err := c.BindJSON(&order); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			defer cancel()
-			return
-		}
+		// if err := c.BindJSON(&order); err != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	defer cancel()
+		// 	return
+		// }
 
-		if order.TableID != nil {
-			err := tableCollection.FindOne(ctx, bson.M{"table_id": order.TableID}).Decode(&table)
-			defer cancel()
-			if err != nil {
-				if err == mongo.ErrNoDocuments {
-					c.JSON(http.StatusNotFound, gin.H{
-						"message": "Table data not found",
-					})
-					return
-				}
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details"})
-				return
-			}
-			updateObj = append(updateObj, bson.E{Key: "table_id", Value: order.TableID})
-		}
+		// if order.TableID != nil {
+		// 	err := tableCollection.FindOne(ctx, bson.M{"table_id": order.TableID}).Decode(&table)
+		// 	defer cancel()
+		// 	if err != nil {
+		// 		if err == mongo.ErrNoDocuments {
+		// 			c.JSON(http.StatusNotFound, gin.H{
+		// 				"message": "Table data not found",
+		// 			})
+		// 			return
+		// 		}
+		// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details"})
+		// 		return
+		// 	}
+		// 	updateObj = append(updateObj, bson.E{Key: "table_id", Value: order.TableID})
+		// }
 
-		order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: order.UpdatedAt})
+		// order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// updateObj = append(updateObj, bson.E{Key: "updated_at", Value: order.UpdatedAt})
 
-		upsert := true
-		filter := bson.M{"order_id": orderID}
-		opt := options.UpdateOptions{
-			Upsert: &upsert,
-		}
+		// upsert := true
+		// filter := bson.M{"order_id": orderID}
+		// opt := options.UpdateOptions{
+		// 	Upsert: &upsert,
+		// }
 
-		result, err := orderCollection.UpdateOne(
-			ctx, filter, bson.D{
-				{Key: "$set", Value: updateObj},
-			},
-			&opt,
-		)
+		// result, err := orderCollection.UpdateOne(
+		// 	ctx, filter, bson.D{
+		// 		{Key: "$set", Value: updateObj},
+		// 	},
+		// 	&opt,
+		// )
 
-		defer cancel()
-		if err != nil {
-			msg := "order item update failed"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			return
-		}
-		c.JSON(http.StatusOK, result)
+		// defer cancel()
+		// if err != nil {
+		// 	msg := "order item update failed"
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		// 	return
+		// }
+		// c.JSON(http.StatusOK, result)
 
 	}
 }
 
 func OrderItemOrderCreator(order models.Order) string {
 
-	order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-	order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-	order.ID = primitive.NewObjectID()
-	order.OrderID = order.ID.Hex()
+	// order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+	// order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+	// order.ID = primitive.NewObjectID()
+	// order.OrderID = order.ID.Hex()
 
-	err, _ := orderCollection.InsertOne(ctx, order)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer cancel()
+	// err, _ := orderCollection.InsertOne(ctx, order)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer cancel()
 
-	return order.OrderID
+	// return order.OrderID
+	return ""
 }

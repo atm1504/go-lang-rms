@@ -8,11 +8,9 @@ import (
 	"time"
 
 	"atm1504.in/rms/database"
-	helper "atm1504.in/rms/helpers"
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -98,108 +96,108 @@ func GetUser() gin.HandlerFunc {
 
 func SignUp() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
-		var user models.User
-		if err := c.BindJSON(&user); err != nil {
-			defer cancel()
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+		// var user models.User
+		// if err := c.BindJSON(&user); err != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	return
+		// }
 
-		validationErr := validate.Struct(user)
-		if validationErr != nil {
-			defer cancel()
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
-		}
+		// validationErr := validate.Struct(user)
+		// if validationErr != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+		// 	return
+		// }
 
-		emailCount, err := userCollection.CountDocuments(ctx, bson.M{"email": user.Email})
-		if err != nil {
-			defer cancel()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+		// emailCount, err := userCollection.CountDocuments(ctx, bson.M{"email": user.Email})
+		// if err != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// 	return
+		// }
 
-		if emailCount > 0 {
-			defer cancel()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Email already exists"})
-			return
-		}
+		// if emailCount > 0 {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Email already exists"})
+		// 	return
+		// }
 
-		phoneCount, err := userCollection.CountDocuments(ctx, bson.M{"phone": user.Phone})
-		if err != nil {
-			defer cancel()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+		// phoneCount, err := userCollection.CountDocuments(ctx, bson.M{"phone": user.Phone})
+		// if err != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// 	return
+		// }
 
-		if phoneCount > 0 {
-			defer cancel()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Phone already exists"})
-			return
-		}
+		// if phoneCount > 0 {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Phone already exists"})
+		// 	return
+		// }
 
-		password := HashPassword(*user.Password)
-		user.Password = &password
+		// password := HashPassword(*user.Password)
+		// user.Password = &password
 
-		user.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		user.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		user.ID = primitive.NewObjectID()
-		user.UserID = user.ID.Hex()
+		// user.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// user.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// user.ID = primitive.NewObjectID()
+		// user.UserID = user.ID.Hex()
 
-		token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.FirstName, *user.LastName, user.UserID)
-		user.Token = &token
-		user.RefreshToken = &refreshToken
-		//if all ok, then you insert this new user into the user collection
+		// token, refreshToken, _ := helper.GenerateAllTokens(*user.Email, *user.FirstName, *user.LastName, user.UserID)
+		// user.Token = &token
+		// user.RefreshToken = &refreshToken
+		// //if all ok, then you insert this new user into the user collection
 
-		resultInsertionNumber, insertErr := userCollection.InsertOne(ctx, user)
-		defer cancel()
-		if insertErr != nil {
-			msg := "User item was not created"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			return
-		}
+		// resultInsertionNumber, insertErr := userCollection.InsertOne(ctx, user)
+		// defer cancel()
+		// if insertErr != nil {
+		// 	msg := "User item was not created"
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		// 	return
+		// }
 
-		c.JSON(http.StatusOK, resultInsertionNumber)
+		// c.JSON(http.StatusOK, resultInsertionNumber)
 
 	}
 }
 
 func Login() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var user models.User
-		var foundUser models.User
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var user models.User
+		// var foundUser models.User
 
-		if err := c.BindJSON(&user); err != nil {
-			defer cancel()
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+		// if err := c.BindJSON(&user); err != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	return
+		// }
 
-		err := userCollection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&foundUser)
-		defer cancel()
-		if err != nil {
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{
-					"message": "User not found",
-				})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while fetching the users"})
-			return
-		}
-		passwordIsValid, msg := VerifyPassword(*user.Password, *foundUser.Password)
-		defer cancel()
-		if !passwordIsValid {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			return
-		}
+		// err := userCollection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&foundUser)
+		// defer cancel()
+		// if err != nil {
+		// 	if err == mongo.ErrNoDocuments {
+		// 		c.JSON(http.StatusNotFound, gin.H{
+		// 			"message": "User not found",
+		// 		})
+		// 		return
+		// 	}
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while fetching the users"})
+		// 	return
+		// }
+		// passwordIsValid, msg := VerifyPassword(*user.Password, *foundUser.Password)
+		// defer cancel()
+		// if !passwordIsValid {
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		// 	return
+		// }
 
-		token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.FirstName, *foundUser.LastName, foundUser.UserID)
-		helper.UpdateAllTokens(token, refreshToken, foundUser.UserID)
-		c.JSON(http.StatusOK, foundUser)
+		// token, refreshToken, _ := helper.GenerateAllTokens(*foundUser.Email, *foundUser.FirstName, *foundUser.LastName, foundUser.UserID)
+		// helper.UpdateAllTokens(token, refreshToken, foundUser.UserID)
+		// c.JSON(http.StatusOK, foundUser)
 	}
 }
 

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"math"
@@ -12,17 +13,18 @@ import (
 	"atm1504.in/rms/database"
 	"atm1504.in/rms/models"
 
+	db "atm1504.in/rms/database"
+
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var foodCollection *mongo.Collection = database.OpenCollection(database.Client, "food")
 
 var validate = validator.New()
+var dbConn, dbErr = db.DBInstanceSql()
 
 func GetFoods() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -113,36 +115,41 @@ func CreateFood() gin.HandlerFunc {
 			return
 		}
 
-		err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuID}).Decode(&menu)
-		defer cancel()
-		if err != nil {
-			fmt.Println(err)
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{
-					"message": "Menu not found",
-				})
+		// err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuID}).Decode(&menu)
+		row := dbConn.QueryRowContext(ctx, "SELECT * FROM menu WHERE menu_id = ?", food.MenuID)
+
+		// Scan the query result into a menu struct
+		if err := row.Scan(&menu.ID, &menu.Name, &menu.Category, &menu.StartDate, &menu.EndDate, &menu.CreatedAt, &menu.UpdatedAt); err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})
 				return
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching menu details"})
 			return
 		}
 
-		food.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		food.ID = primitive.NewObjectID()
-		food.FoodID = food.ID.Hex()
-		var num = toFixed(*food.Price, 2)
-		food.Price = &num
-		result, inserErr := foodCollection.InsertOne(ctx, food)
-		defer cancel()
-		if inserErr != nil {
-			msg := "Food item was not created"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		// Set the created and updated timestamps
+		now := time.Now()
+		food.CreatedAt = now
+		food.UpdatedAt = now
+
+		// Perform the insertion into the database
+		result, err := dbConn.ExecContext(ctx, "INSERT INTO food (name, menu_id, price, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			food.Name, food.MenuID, food.Price, food.CreatedAt, food.UpdatedAt)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert food item"})
 			return
 		}
 
-		c.JSON(http.StatusOK, result)
+		foodID, err := result.LastInsertId()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get food item ID"})
+			return
+		}
 
+		// Set the food ID and send the response
+		food.ID = foodID
+		c.JSON(http.StatusOK, gin.H{"message": "Food item created successfully", "food": food})
 	}
 }
 
@@ -157,69 +164,69 @@ func toFixed(num float64, precision int) float64 {
 
 func UpdateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var menu models.Menu
-		var food models.Food
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var menu models.Menu
+		// var food models.Food
 
-		foodID := c.Param("food_id")
+		// foodID := c.Param("food_id")
 
-		if err := c.BindJSON(&food); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			defer cancel()
-			return
-		}
+		// if err := c.BindJSON(&food); err != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	defer cancel()
+		// 	return
+		// }
 
-		var updateObj primitive.D
-		if food.Name != nil {
-			updateObj = append(updateObj, bson.E{Key: "name", Value: food.Name})
-		}
-		if food.Price != nil {
-			updateObj = append(updateObj, bson.E{Key: "price", Value: food.Price})
-		}
+		// var updateObj primitive.D
+		// if food.Name != nil {
+		// 	updateObj = append(updateObj, bson.E{Key: "name", Value: food.Name})
+		// }
+		// if food.Price != nil {
+		// 	updateObj = append(updateObj, bson.E{Key: "price", Value: food.Price})
+		// }
 
-		if food.FoodImage != nil {
-			updateObj = append(updateObj, bson.E{Key: "food_image", Value: food.FoodImage})
-		}
+		// if food.FoodImage != nil {
+		// 	updateObj = append(updateObj, bson.E{Key: "food_image", Value: food.FoodImage})
+		// }
 
-		if food.MenuID != nil {
-			err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuID}).Decode(&menu)
-			defer cancel()
-			if err != nil {
+		// if food.MenuID != nil {
+		// 	err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuID}).Decode(&menu)
+		// 	defer cancel()
+		// 	if err != nil {
 
-				if err == mongo.ErrNoDocuments {
-					msg := "message:Menu was not found"
-					c.JSON(http.StatusNotFound, gin.H{"error": msg})
-					return
-				}
+		// 		if err == mongo.ErrNoDocuments {
+		// 			msg := "message:Menu was not found"
+		// 			c.JSON(http.StatusNotFound, gin.H{"error": msg})
+		// 			return
+		// 		}
 
-				msg := fmt.Sprintf("Internal Server Error occurred: %m", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-				return
-			}
-			updateObj = append(updateObj, bson.E{Key: "menu_id", Value: food.MenuID})
-		}
-		food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: food.UpdatedAt})
+		// 		msg := fmt.Sprintf("Internal Server Error occurred: %m", err)
+		// 		c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		// 		return
+		// 	}
+		// 	updateObj = append(updateObj, bson.E{Key: "menu_id", Value: food.MenuID})
+		// }
+		// food.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// updateObj = append(updateObj, bson.E{Key: "updated_at", Value: food.UpdatedAt})
 
-		upsert := true
-		filter := bson.M{"food_id": foodID}
-		opt := options.UpdateOptions{
-			Upsert: &upsert,
-		}
+		// upsert := true
+		// filter := bson.M{"food_id": foodID}
+		// opt := options.UpdateOptions{
+		// 	Upsert: &upsert,
+		// }
 
-		result, err := foodCollection.UpdateOne(
-			ctx, filter, bson.D{
-				{Key: "$set", Value: updateObj},
-			},
-			&opt,
-		)
-		defer cancel()
-		if err != nil {
-			msg := "food item update failed"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		// result, err := foodCollection.UpdateOne(
+		// 	ctx, filter, bson.D{
+		// 		{Key: "$set", Value: updateObj},
+		// 	},
+		// 	&opt,
+		// )
+		// defer cancel()
+		// if err != nil {
+		// 	msg := "food item update failed"
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 
-			return
-		}
-		c.JSON(http.StatusOK, result)
+		// 	return
+		// }
+		// c.JSON(http.StatusOK, result)
 	}
 }

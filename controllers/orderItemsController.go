@@ -12,7 +12,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 var orderItemCollection *mongo.Collection = database.OpenCollection(database.Client, "orderItem")
@@ -145,84 +144,84 @@ func ItemsByOrder(id string) (OrderItems []primitive.M, err error) {
 
 func CreateOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
-		var orderItemPack OrderItemPack
-		var order models.Order
+		// var orderItemPack OrderItemPack
+		// var order models.Order
 
-		if err := c.BindJSON(&orderItemPack); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			defer cancel()
-			return
-		}
+		// if err := c.BindJSON(&orderItemPack); err != nil {
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	defer cancel()
+		// 	return
+		// }
 
-		order.OrderDate, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		orderItemsToBeInserted := []interface{}{}
-		order.TableID = orderItemPack.TableID
-		orderID := OrderItemOrderCreator(order)
+		// order.OrderDate, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// orderItemsToBeInserted := []interface{}{}
+		// order.TableID = orderItemPack.TableID
+		// orderID := OrderItemOrderCreator(order)
 
-		for _, orderItem := range orderItemPack.OrderItems {
-			orderItem.OrderID = orderID
-			validationErr := validate.Struct((orderItem))
-			if validationErr != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-				defer cancel()
-				return
-			}
-			orderItem.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-			orderItem.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-			orderItem.ID = primitive.NewObjectID()
-			orderItem.OrderItemID = orderItem.ID.Hex()
-			var num = toFixed(*orderItem.UnitPrice, 2)
-			orderItem.UnitPrice = &num
-			orderItemsToBeInserted = append(orderItemsToBeInserted, orderItem)
-		}
-		insertedOrderItems, err := orderItemCollection.InsertMany(ctx, orderItemsToBeInserted)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer cancel()
-		c.JSON(http.StatusOK, insertedOrderItems)
+		// for _, orderItem := range orderItemPack.OrderItems {
+		// 	orderItem.OrderID = orderID
+		// 	validationErr := validate.Struct((orderItem))
+		// 	if validationErr != nil {
+		// 		c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+		// 		defer cancel()
+		// 		return
+		// 	}
+		// 	orderItem.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// 	orderItem.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// 	orderItem.ID = primitive.NewObjectID()
+		// 	orderItem.OrderItemID = orderItem.ID.Hex()
+		// 	var num = toFixed(*orderItem.UnitPrice, 2)
+		// 	orderItem.UnitPrice = &num
+		// 	orderItemsToBeInserted = append(orderItemsToBeInserted, orderItem)
+		// }
+		// insertedOrderItems, err := orderItemCollection.InsertMany(ctx, orderItemsToBeInserted)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
+		// defer cancel()
+		// c.JSON(http.StatusOK, insertedOrderItems)
 	}
 }
 
 func UpdateOrderItem() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var orderItem models.OrderItem
-		orderItemID := c.Param("order_item_id")
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var orderItem models.OrderItem
+		// orderItemID := c.Param("order_item_id")
 
-		filter := bson.M{"order_item_id": orderItemID}
-		var updateObj primitive.D
-		if orderItem.UnitPrice != nil {
-			updateObj = append(updateObj, bson.E{Key: "unit_price", Value: orderItem.UnitPrice})
-		}
-		if orderItem.Quantity != nil {
-			updateObj = append(updateObj, bson.E{Key: "quantity", Value: orderItem.Quantity})
-		}
-		if orderItem.FoodID != nil {
-			updateObj = append(updateObj, bson.E{Key: "food_id", Value: orderItem.FoodID})
-		}
+		// filter := bson.M{"order_item_id": orderItemID}
+		// var updateObj primitive.D
+		// if orderItem.UnitPrice != nil {
+		// 	updateObj = append(updateObj, bson.E{Key: "unit_price", Value: orderItem.UnitPrice})
+		// }
+		// if orderItem.Quantity != nil {
+		// 	updateObj = append(updateObj, bson.E{Key: "quantity", Value: orderItem.Quantity})
+		// }
+		// if orderItem.FoodID != nil {
+		// 	updateObj = append(updateObj, bson.E{Key: "food_id", Value: orderItem.FoodID})
+		// }
 
-		orderItem.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		updateObj = append(updateObj, bson.E{Key: "updated_at", Value: orderItem.UpdatedAt})
+		// orderItem.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// updateObj = append(updateObj, bson.E{Key: "updated_at", Value: orderItem.UpdatedAt})
 
-		upsert := true
-		opt := options.UpdateOptions{
-			Upsert: &upsert,
-		}
+		// upsert := true
+		// opt := options.UpdateOptions{
+		// 	Upsert: &upsert,
+		// }
 
-		result, err := orderItemCollection.UpdateOne(ctx, filter, bson.D{
-			{Key: "$set", Value: updateObj},
-		}, &opt)
-		defer cancel()
-		if err != nil {
-			msg := "Order item update failed"
-			c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-			return
-		}
+		// result, err := orderItemCollection.UpdateOne(ctx, filter, bson.D{
+		// 	{Key: "$set", Value: updateObj},
+		// }, &opt)
+		// defer cancel()
+		// if err != nil {
+		// 	msg := "Order item update failed"
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+		// 	return
+		// }
 
-		c.JSON(http.StatusOK, result)
+		// c.JSON(http.StatusOK, result)
 
 	}
 }

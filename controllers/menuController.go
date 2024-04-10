@@ -19,6 +19,8 @@ import (
 
 var menuCollection *mongo.Collection = database.OpenCollection(database.Client, "menu")
 
+// var dbConn, dbErr = db.DBInstanceSql()
+
 // var validate = validator.New()
 func GetMenus() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -111,21 +113,28 @@ func CreateMenu() gin.HandlerFunc {
 		validationErr := validate.Struct(menu)
 		if validationErr != nil {
 			defer cancel()
+
 			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
 			return
 		}
-		menu.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		menu.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		menu.ID = primitive.NewObjectID()
-		menu.MenuID = menu.ID.Hex()
-
-		result, err := menuCollection.InsertOne(ctx, menu)
-		defer cancel()
+		now := time.Now()
+		menu.CreatedAt = now
+		menu.UpdatedAt = now
+		// Perform the insertion into the database
+		result, err := dbConn.ExecContext(ctx, "INSERT INTO menu (name, category, start_date, end_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+			menu.Name, menu.Category, menu.StartDate, menu.EndDate, menu.CreatedAt, menu.UpdatedAt)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in creating menu"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert food item"})
 			return
 		}
-		c.JSON(http.StatusCreated, result)
+
+		menuID, err := result.LastInsertId()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get menu item ID"})
+			return
+		}
+		menu.ID = menuID
+		c.JSON(http.StatusOK, gin.H{"message": "Menu item created successfully", "menu": menu})
 	}
 }
 

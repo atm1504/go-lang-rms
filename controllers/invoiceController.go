@@ -55,92 +55,92 @@ func GetInvoices() gin.HandlerFunc {
 
 func GetInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		invoiceID := c.Param("invoice_id")
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// invoiceID := c.Param("invoice_id")
 
-		var invoice models.Invoice
-		err := invoiceCollection.FindOne(ctx, bson.M{"invoice_id": invoiceID}).Decode(&invoice)
-		if err != nil {
-			defer cancel()
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{
-					"message": "Invoice not found",
-				})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing invoice items"})
-			return
-		}
+		// var invoice models.Invoice
+		// err := invoiceCollection.FindOne(ctx, bson.M{"invoice_id": invoiceID}).Decode(&invoice)
+		// if err != nil {
+		// 	defer cancel()
+		// 	if err == mongo.ErrNoDocuments {
+		// 		c.JSON(http.StatusNotFound, gin.H{
+		// 			"message": "Invoice not found",
+		// 		})
+		// 		return
+		// 	}
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing invoice items"})
+		// 	return
+		// }
 
-		var invoiceView InvoiceViewFormat
-		allOrderItems, err := ItemsByOrder(invoice.OrderID)
+		// var invoiceView InvoiceViewFormat
+		// allOrderItems, err := ItemsByOrder(invoice.OrderID)
 
-		if err != nil {
-			defer cancel()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing order items by order ID"})
-			return
-		}
-		invoiceView.OrderID = invoice.OrderID
-		invoiceView.PaymentDueDate = invoice.PaymentDueDate
-		invoiceView.PaymentMethod = "null"
-		if invoice.PaymentMethod != nil {
-			invoiceView.PaymentMethod = *invoice.PaymentMethod
-		}
+		// if err != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing order items by order ID"})
+		// 	return
+		// }
+		// invoiceView.OrderID = invoice.OrderID
+		// invoiceView.PaymentDueDate = invoice.PaymentDueDate
+		// invoiceView.PaymentMethod = "null"
+		// if invoice.PaymentMethod != nil {
+		// 	invoiceView.PaymentMethod = *invoice.PaymentMethod
+		// }
 
-		invoiceView.InvoiceID = invoice.InvoiceID
-		invoiceView.PaymentStatus = invoice.PaymentStatus
-		invoiceView.PaymentDue = allOrderItems[0]["payment_due"]
-		invoiceView.TableNumber = allOrderItems[0]["table_number"]
-		invoiceView.OrderDetails = allOrderItems[0]["order_items"]
-		defer cancel()
-		c.JSON(http.StatusOK, invoiceView)
+		// invoiceView.InvoiceID = invoice.InvoiceID
+		// invoiceView.PaymentStatus = invoice.PaymentStatus
+		// invoiceView.PaymentDue = allOrderItems[0]["payment_due"]
+		// invoiceView.TableNumber = allOrderItems[0]["table_number"]
+		// invoiceView.OrderDetails = allOrderItems[0]["order_items"]
+		// defer cancel()
+		// c.JSON(http.StatusOK, invoiceView)
 	}
 }
 
 func CreateInvoice() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		var invoice models.Invoice
+		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		// var invoice models.Invoice
 
-		if err := c.BindJSON(&invoice); err != nil {
-			defer cancel()
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
+		// if err := c.BindJSON(&invoice); err != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		// 	return
+		// }
 
-		var order models.Order
+		// var order models.Order
 
-		err := orderCollection.FindOne(ctx, bson.M{"order_id": invoice.OrderID}).Decode(&order)
-		defer cancel()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "message: Order was not found"})
-			return
-		}
-		status := "PENDING"
-		if invoice.PaymentStatus == nil {
-			invoice.PaymentStatus = &status
-		}
+		// err := orderCollection.FindOne(ctx, bson.M{"order_id": invoice.OrderID}).Decode(&order)
+		// defer cancel()
+		// if err != nil {
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "message: Order was not found"})
+		// 	return
+		// }
+		// status := "PENDING"
+		// if invoice.PaymentStatus == nil {
+		// 	invoice.PaymentStatus = &status
+		// }
 
-		invoice.PaymentDueDate, _ = time.Parse(time.RFC3339, time.Now().AddDate(0, 0, 1).Format(time.RFC3339))
-		invoice.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		invoice.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		invoice.ID = primitive.NewObjectID()
-		invoice.InvoiceID = invoice.ID.Hex()
+		// invoice.PaymentDueDate, _ = time.Parse(time.RFC3339, time.Now().AddDate(0, 0, 1).Format(time.RFC3339))
+		// invoice.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// invoice.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		// invoice.ID = primitive.NewObjectID()
+		// invoice.InvoiceID = invoice.ID.Hex()
 
-		validationErr := validate.Struct(invoice)
-		if validationErr != nil {
-			defer cancel()
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			return
-		}
+		// validationErr := validate.Struct(invoice)
+		// if validationErr != nil {
+		// 	defer cancel()
+		// 	c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+		// 	return
+		// }
 
-		result, insertErr := invoiceCollection.InsertOne(ctx, invoice)
-		defer cancel()
-		if insertErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "invoice item was not created"})
-			return
-		}
-		c.JSON(http.StatusOK, result)
+		// result, insertErr := invoiceCollection.InsertOne(ctx, invoice)
+		// defer cancel()
+		// if insertErr != nil {
+		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "invoice item was not created"})
+		// 	return
+		// }
+		// c.JSON(http.StatusOK, result)
 	}
 }
 
