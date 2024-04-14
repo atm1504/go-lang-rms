@@ -13,10 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// var menuCollection *mongo.Collection = database.OpenCollection(database.Client, "menu")
-
-// var dbConn, dbErr = db.DBInstanceSql()
-
 func ParseTime(timeStr string) (time.Time, error) {
 	// Parse the time string into a time.Time object
 	parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr)
@@ -34,11 +30,9 @@ func ISEInjection(c *gin.Context, err error, errorMessage string) bool {
 	}
 	return false
 }
-
-// var validate = validator.New()
 func GetMenus() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
 		recordPerPage, err := strconv.Atoi(c.DefaultQuery("recordPerPage", "10"))
@@ -50,27 +44,29 @@ func GetMenus() gin.HandlerFunc {
 		if err != nil || page < 1 {
 			page = 1
 		}
-
 		startIndex := (page - 1) * recordPerPage
 
 		dbConn, dbErr := db.DBInstanceSql()
+
 		if ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer dbConn.Close()
 
-		var totalCount int
-		err = dbConn.QueryRowContext(ctx, "SELECT COUNT(*) FROM menu").Scan(&totalCount)
-		if ISEInjection(c, dbErr, "Error fetching menu count") {
-			return
-		}
-
-		rows, err := dbConn.QueryContext(ctx, "SELECT * FROM menu LIMIT ?, ?", startIndex, recordPerPage)
+		// Fetch total count and menus in one go
+		query := `
+			SELECT COUNT(*) OVER(), id, name, category, start_date, end_date, created_at, updated_at
+			FROM menu
+			LIMIT ? OFFSET ?
+		`
+		rows, err := dbConn.QueryContext(ctx, query, recordPerPage, startIndex)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching menus"})
 			return
 		}
 		defer rows.Close()
+
+		var totalCount int
 		var menus []models.Menu
 		for rows.Next() {
 			var menu models.Menu
@@ -78,8 +74,8 @@ func GetMenus() gin.HandlerFunc {
 			var endDateStr string
 			var createdAtStr string
 			var updatedAtStr string
-			if err := rows.Scan(&menu.ID, &menu.Name, &menu.Category, &startDateStr, &endDateStr, &createdAtStr, &updatedAtStr); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning menu data"})
+			if err := rows.Scan(&totalCount, &menu.ID, &menu.Name, &menu.Category, &startDateStr, &endDateStr, &createdAtStr, &updatedAtStr); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning menu data", "errMsg": err.Error()})
 				return
 			}
 			startDate, err1 := ParseTime(startDateStr)
@@ -95,13 +91,13 @@ func GetMenus() gin.HandlerFunc {
 			menu.CreatedAt = createdAt
 			menu.UpdatedAt = updatedAt
 			menus = append(menus, menu)
+			menus = append(menus, menu)
 		}
 		if err = rows.Err(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error during rows iteration"})
 			return
 		}
 
-		// Constructing the response
 		c.JSON(http.StatusOK, gin.H{
 			"total_count": totalCount,
 			"menus":       menus,
@@ -185,10 +181,10 @@ func CreateMenu() gin.HandlerFunc {
 		menu.CreatedAt = now
 		menu.UpdatedAt = now
 		// Perform the insertion into the database
-		result, err := dbConn.ExecContext(ctx, "INSERT INTO menu (name, category, start_date, end_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-			menu.Name, menu.Category, menu.StartDate, menu.EndDate, menu.CreatedAt, menu.UpdatedAt)
+		result, err := dbConn.ExecContext(ctx, "INSERT INTO menu (name, category, start_date, end_date) VALUES (?, ?, ?, ?)",
+			menu.Name, menu.Category, menu.StartDate, menu.EndDate)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert food item"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert food item", "errMsg": err.Error()})
 			return
 		}
 
