@@ -4,20 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
-	"atm1504.in/rms/database"
 	db "atm1504.in/rms/database"
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var menuCollection *mongo.Collection = database.OpenCollection(database.Client, "menu")
+// var menuCollection *mongo.Collection = database.OpenCollection(database.Client, "menu")
 
 // var dbConn, dbErr = db.DBInstanceSql()
 
@@ -31,7 +27,7 @@ func ParseTime(timeStr string) (time.Time, error) {
 }
 
 // Function to handle database connection errors
-func HandleDBError(c *gin.Context, err error, errorMessage string) bool {
+func ISEInjection(c *gin.Context, err error, errorMessage string) bool {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage})
 		return true
@@ -57,39 +53,59 @@ func GetMenus() gin.HandlerFunc {
 
 		startIndex := (page - 1) * recordPerPage
 
-		matchStage := bson.D{{Key: "$match", Value: bson.D{}}}
-		groupStage := bson.D{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: nil},
-			{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},
-			{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
-		}}}
-		projectStage := bson.D{
-			{Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 0},
-				{Key: "total_count", Value: 1},
-				{Key: "menus", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
-			}},
+		dbConn, dbErr := db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
 		}
+		defer dbConn.Close()
 
-		result, err := menuCollection.Aggregate(ctx, mongo.Pipeline{matchStage, groupStage, projectStage})
-		defer cancel()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while listing menus"})
+		var totalCount int
+		err = dbConn.QueryRowContext(ctx, "SELECT COUNT(*) FROM menu").Scan(&totalCount)
+		if ISEInjection(c, dbErr, "Error fetching menu count") {
 			return
 		}
 
-		var allMenus []bson.M
-		if err = result.All(ctx, &allMenus); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while processing menus"})
-			log.Fatal(err)
+		rows, err := dbConn.QueryContext(ctx, "SELECT * FROM menu LIMIT ?, ?", startIndex, recordPerPage)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching menus"})
+			return
+		}
+		defer rows.Close()
+		var menus []models.Menu
+		for rows.Next() {
+			var menu models.Menu
+			var startDateStr string
+			var endDateStr string
+			var createdAtStr string
+			var updatedAtStr string
+			if err := rows.Scan(&menu.ID, &menu.Name, &menu.Category, &startDateStr, &endDateStr, &createdAtStr, &updatedAtStr); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error scanning menu data"})
+				return
+			}
+			startDate, err1 := ParseTime(startDateStr)
+			endDate, err2 := ParseTime(endDateStr)
+			createdAt, err3 := ParseTime(createdAtStr)
+			updatedAt, err4 := ParseTime(updatedAtStr)
+			if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error parsing time strings"})
+				return
+			}
+			menu.StartDate = &startDate
+			menu.EndDate = &endDate
+			menu.CreatedAt = createdAt
+			menu.UpdatedAt = updatedAt
+			menus = append(menus, menu)
+		}
+		if err = rows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error during rows iteration"})
+			return
 		}
 
-		// Assuming you want to return the list of menus directly
-		if len(allMenus) > 0 {
-			c.JSON(http.StatusOK, allMenus[0])
-		} else {
-			c.JSON(http.StatusOK, []interface{}{}) // Return an empty array if no menus
-		}
+		// Constructing the response
+		c.JSON(http.StatusOK, gin.H{
+			"total_count": totalCount,
+			"menus":       menus,
+		})
 	}
 }
 
@@ -99,7 +115,7 @@ func GetMenu() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if HandleDBError(c, dbErr, "Error connecting to database") {
+		if ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		// defer dbConn.Close()
@@ -195,7 +211,7 @@ func UpdateMenu() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 		db, err := db.DBInstanceSql()
-		if HandleDBError(c, err, "Error connecting to database") {
+		if ISEInjection(c, err, "Error connecting to database") {
 			return
 		}
 		defer db.Close()
