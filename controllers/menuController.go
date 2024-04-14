@@ -25,7 +25,7 @@ func ParseTime(timeStr string) (time.Time, error) {
 // Function to handle database connection errors
 func ISEInjection(c *gin.Context, err error, errorMessage string) bool {
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage, "errMsg": err.Error()})
 		return true
 	}
 	return false
