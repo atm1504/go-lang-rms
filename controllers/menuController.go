@@ -91,7 +91,7 @@ func GetMenus() gin.HandlerFunc {
 			menu.CreatedAt = createdAt
 			menu.UpdatedAt = updatedAt
 			menus = append(menus, menu)
-			menus = append(menus, menu)
+			// menus = append(menus, menu)
 		}
 		if err = rows.Err(); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error during rows iteration"})
@@ -136,11 +136,11 @@ func GetMenu() gin.HandlerFunc {
 			return
 		}
 
-		startDate, err := ParseTime(startDateStr)
-		endDate, err := ParseTime(endDateStr)
-		createdAt, err1 := ParseTime(createdAtStr)
-		updatedAt, err1 := ParseTime(updatedAtStr)
-		if err != nil || err1 != nil {
+		startDate, err1 := ParseTime(startDateStr)
+		endDate, err2 := ParseTime(endDateStr)
+		createdAt, err3 := ParseTime(createdAtStr)
+		updatedAt, err4 := ParseTime(updatedAtStr)
+		if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error parsing time strings"})
 			return
 		}
@@ -256,8 +256,4 @@ func UpdateMenu() gin.HandlerFunc {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Start date and end date are required"})
 
 	}
-}
-
-func connectDB() {
-	panic("unimplemented")
 }

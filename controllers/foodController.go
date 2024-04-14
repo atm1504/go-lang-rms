@@ -4,23 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"strconv"
 	"time"
 
-	"atm1504.in/rms/database"
 	db "atm1504.in/rms/database"
 	"atm1504.in/rms/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var foodCollection *mongo.Collection = database.OpenCollection(database.Client, "food")
+// var foodCollection *mongo.Collection = database.OpenCollection(database.Client, "food")
 
 var validate = validator.New()
 
@@ -28,70 +24,112 @@ var validate = validator.New()
 
 func GetFoods() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		recordPerPage, err := strconv.Atoi(c.Query("recordPerPage"))
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+
+		recordPerPage, err := strconv.Atoi(c.DefaultQuery("recordPerPage", "10"))
 		if err != nil || recordPerPage < 1 {
 			recordPerPage = 10
 		}
 
-		page, err := strconv.Atoi(c.Query("page"))
+		page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 		if err != nil || page < 1 {
 			page = 1
 		}
-
 		startIndex := (page - 1) * recordPerPage
-		// startIndex, _ := strconv.Atoi(c.Query("startIndex"))
 
-		matchStage := bson.D{{Key: "$match", Value: bson.D{{}}}}
-		groupStage := bson.D{{Key: "$group", Value: bson.D{{Key: "_id", Value: bson.D{{Key: "_id", Value: "null"}}}, {Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}}, {Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}}}}}
-		projectStage := bson.D{
-			{
-				Key: "$project", Value: bson.D{
-					{Key: "_id", Value: 0},
-					{Key: "total_count", Value: 1},
-					{Key: "food_items", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
-				}}}
+		dbConn, dbErr := db.DBInstanceSql()
 
-		result, err := foodCollection.Aggregate(ctx, mongo.Pipeline{
-			matchStage, groupStage, projectStage})
-		defer cancel()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
+		}
+		defer dbConn.Close()
+
+		// Fetch total count and menus in one go
+		query := `
+				SELECT COUNT(*) OVER(), id, name, price, food_image, menu_id, created_at, updated_at
+				FROM food
+				LIMIT ? OFFSET ?
+			`
+		foodRows, err := dbConn.QueryContext(ctx, query, recordPerPage, startIndex)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing food items"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching menus"})
+			return
 		}
-		var allFoods []bson.M
-		if err = result.All(ctx, &allFoods); err != nil {
-			log.Fatal(err)
+		defer foodRows.Close()
+
+		var totalCount int
+		var foodList []models.Food
+		for foodRows.Next() {
+			var food models.Food
+			var createdAtStr string
+			var updatedAtStr string
+			err := foodRows.Scan(&totalCount, &food.ID, &food.Name, &food.Price, &food.FoodImage, &food.MenuID, &createdAtStr, &updatedAtStr)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching foods"})
+				return
+			}
+
+			createdAt, err3 := ParseTime(createdAtStr)
+			updatedAt, err4 := ParseTime(updatedAtStr)
+
+			if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+				return
+			}
+
+			food.CreatedAt = createdAt
+			food.UpdatedAt = updatedAt
+
+			foodList = append(foodList, food)
 		}
-		// c.JSON(http.StatusOK, allFoods[0])
-		// Assuming you want to return the list of menus directly
-		if len(allFoods) > 0 {
-			c.JSON(http.StatusOK, allFoods[0])
-		} else {
-			c.JSON(http.StatusOK, []interface{}{}) // Return an empty array if no menus
+
+		if err = foodRows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error during rows iteration"})
+			return
 		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"total_count": totalCount,
+			"foods":       foodList,
+		})
 
 	}
+
 }
 
 func GetFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		foodID := c.Param("food_id")
-		var food models.Food
-		err := foodCollection.FindOne(ctx, bson.M{"food_id": foodID}).Decode(&food)
-		// fmt.Println(food)
 		defer cancel()
-		if err != nil {
-			fmt.Println(err)
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{
-					"message": "Food not found",
-				})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"erroe": "Error in fetching product"})
+
+		foodID := c.Param("food_id")
+
+		var dbConn, dbErr = db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
+
+		var food models.Food
+		var createdAtStr string
+		var updatedAtStr string
+		row := dbConn.QueryRowContext(ctx, "SELECT * FROM food WHERE id = ?", foodID)
+		if err := row.Scan(&food.ID, &food.Name, &food.Price, &food.FoodImage, &createdAtStr, &updatedAtStr, &food.MenuID); err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})
+				return
+			}
+			fmt.Println(err)
+			ISEInjection(c, err, "Error in fetching menu details")
+			return
+		}
+		createdAt, err3 := ParseTime(createdAtStr)
+		updatedAt, err4 := ParseTime(updatedAtStr)
+		if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+			return
+		}
+
+		food.CreatedAt = createdAt
+		food.UpdatedAt = updatedAt
 		c.JSON(http.StatusOK, food)
 	}
 }
@@ -99,12 +137,12 @@ func GetFood() gin.HandlerFunc {
 func CreateFood() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-
+		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if dbErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error connecting to database"})
+		if ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
+
 		var menu models.Menu
 		var food models.Food
 
@@ -121,27 +159,21 @@ func CreateFood() gin.HandlerFunc {
 			return
 		}
 
-		// err := menuCollection.FindOne(ctx, bson.M{"menu_id": food.MenuID}).Decode(&menu)
-		row := dbConn.QueryRowContext(ctx, "SELECT * FROM menu WHERE menu_id = ?", food.MenuID)
-
-		// Scan the query result into a menu struct
-		if err := row.Scan(&menu.ID, &menu.Name, &menu.Category, &menu.StartDate, &menu.EndDate, &menu.CreatedAt, &menu.UpdatedAt); err != nil {
+		menuDetails := dbConn.QueryRowContext(ctx, "SELECT id, name FROM menu WHERE id = ?", food.MenuID)
+		if err := menuDetails.Scan(&menu.ID, &menu.Name); err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching menu details"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching menu details", "err": err.Error()})
 			return
 		}
-
-		// Set the created and updated timestamps
 		now := time.Now()
 		food.CreatedAt = now
 		food.UpdatedAt = now
-
-		// Perform the insertion into the database
 		result, err := dbConn.ExecContext(ctx, "INSERT INTO food (name, menu_id, price, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
 			food.Name, food.MenuID, food.Price, food.CreatedAt, food.UpdatedAt)
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert food item"})
 			return
@@ -153,7 +185,6 @@ func CreateFood() gin.HandlerFunc {
 			return
 		}
 
-		// Set the food ID and send the response
 		food.ID = foodID
 		c.JSON(http.StatusOK, gin.H{"message": "Food item created successfully", "food": food})
 	}
