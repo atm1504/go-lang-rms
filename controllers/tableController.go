@@ -138,10 +138,7 @@ func CreateTable() gin.HandlerFunc {
 		}
 
 		validationErr := validate.Struct(table)
-
-		if validationErr != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-			defer cancel()
+		if BadRequestInjection(c, validationErr, "Error in create table payload") {
 			return
 		}
 

@@ -2,21 +2,16 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
-	"atm1504.in/rms/database"
+	db "atm1504.in/rms/database"
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
-
-var orderCollection *mongo.Collection = database.OpenCollection(database.Client, "order")
-var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
 func GetOrders() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -34,177 +29,211 @@ func GetOrders() gin.HandlerFunc {
 		}
 
 		startIndex := (page - 1) * recordPerPage
+		dbConn, dbErr := db.DBInstanceSql()
 
-		matchStage := bson.D{{Key: "$match", Value: bson.D{}}}
-		groupStage := bson.D{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: nil},
-			{Key: "total_count", Value: bson.D{{Key: "$sum", Value: 1}}},
-			{Key: "data", Value: bson.D{{Key: "$push", Value: "$$ROOT"}}},
-		}}}
-		projectStage := bson.D{
-			{Key: "$project", Value: bson.D{
-				{Key: "_id", Value: 0},
-				{Key: "total_count", Value: 1},
-				{Key: "orders", Value: bson.D{{Key: "$slice", Value: []interface{}{"$data", startIndex, recordPerPage}}}},
-			}},
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
 		}
+		defer dbConn.Close()
+		query := `SELECT COUNT(*) OVER(), id, order_date, created_at, updated_at, table_id FROM orders LIMIT ? OFFSET ?`
 
-		result, err := orderCollection.Aggregate(ctx, mongo.Pipeline{matchStage, groupStage, projectStage})
-		defer cancel()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while listing menus"})
+		fmt.Println(query)
+		orderRows, err := dbConn.QueryContext(ctx, query, recordPerPage, startIndex)
+		if ISEInjection(c, err, "Error fetching tables") {
 			return
 		}
 
-		var allOrders []bson.M
-		if err = result.All(ctx, &allOrders); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occurred while processing menus"})
-			log.Fatal(err)
+		defer orderRows.Close()
+
+		var totalCount int
+		var orderList []models.Order
+		for orderRows.Next() {
+			var orderObj models.Order
+			var createdAtStr string
+			var updatedAtStr string
+			var orderDateAtStr string
+			err := orderRows.Scan(&totalCount, &orderObj.ID, &orderDateAtStr, &createdAtStr, &updatedAtStr, &orderObj.TableID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching tables"})
+				return
+			}
+
+			createdAt, err3 := ParseTime(createdAtStr)
+			updatedAt, err4 := ParseTime(updatedAtStr)
+			orderDate, err5 := ParseTime(orderDateAtStr)
+
+			if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") || ISEInjection(c, err5, "Error parsing time strings") {
+				return
+			}
+
+			orderObj.CreatedAt = createdAt
+			orderObj.UpdatedAt = updatedAt
+			orderObj.OrderDate = &orderDate
+
+			orderList = append(orderList, orderObj)
 		}
 
-		// Assuming you want to return the list of menus directly
-		if len(allOrders) > 0 {
-			c.JSON(http.StatusOK, allOrders[0])
-		} else {
-			c.JSON(http.StatusOK, []interface{}{}) // Return an empty array if no menus
+		if err = orderRows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error during rows iteration"})
+			return
 		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"total_count": totalCount,
+			"items":       orderList,
+		})
+
 	}
 }
 
 func GetOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
 		var order models.Order
 
 		orderID := c.Param("order_id")
 		fmt.Println("Order id is: ", orderID)
 
-		err := orderCollection.FindOne(ctx, bson.M{"order_id": orderID}).Decode(&order)
-		defer cancel()
-		if err != nil {
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{
-					"message": "Order not found",
-				})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching order details"})
+		var dbConn, dbErr = db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
+
+		var createdAtStr string
+		var orderDateStr string
+		var updatedAtStr string
+
+		row := dbConn.QueryRowContext(ctx, "SELECT id, order_date, created_at, updated_at, table_id  FROM orders WHERE id = ?", orderID)
+		if err := row.Scan(&order.ID, &orderDateStr, &createdAtStr, &updatedAtStr, &order.TableID); err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Order not found"})
+				return
+			}
+			fmt.Println(err)
+			ISEInjection(c, err, "Error in fetching order details")
+			return
+		}
+
+		createdAt, err3 := ParseTime(createdAtStr)
+		updatedAt, err4 := ParseTime(updatedAtStr)
+		orderDate, err5 := ParseTime(orderDateStr)
+
+		if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") || ISEInjection(c, err5, "Error parsing time strings") {
+			return
+		}
+
+		order.CreatedAt = createdAt
+		order.UpdatedAt = updatedAt
+		order.OrderDate = &orderDate
+
 		c.JSON(http.StatusOK, order)
 	}
 }
 
 func CreateOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		// var table models.Table
-		// var order models.Order
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+		var dbConn, dbErr = db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
+		}
+		var table models.Table
+		var order models.Order
 
-		// if err := c.BindJSON(&order); err != nil {
-		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		// 	defer cancel()
-		// 	return
-		// }
+		if err := c.BindJSON(&order); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error(), "msg": "I failed while destructuring"})
+			return
+		}
 
-		// validationErr := validate.Struct(order)
-		// if validationErr != nil {
-		// 	c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-		// 	defer cancel()
-		// 	return
-		// }
+		validationErr := validate.Struct(order)
+		if BadRequestInjection(c, validationErr, "Error in create order payload") {
+			return
+		}
 
-		// if order.TableID != nil {
-		// 	err := tableCollection.FindOne(context.Background(), bson.M{"table_id": order.TableID}).Decode(&table)
-		// 	defer cancel()
-		// 	if err != nil {
-		// 		if err == mongo.ErrNoDocuments {
-		// 			c.JSON(http.StatusNotFound, gin.H{
-		// 				"message": "Table data not found",
-		// 			})
-		// 			return
-		// 		}
-		// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details"})
-		// 		return
-		// 	}
-		// }
-
-		// order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		// order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-
-		// order.ID = primitive.NewObjectID()
-		// order.OrderID = order.ID.Hex()
-
-		// result, insertErr := orderCollection.InsertOne(ctx, order)
-		// defer cancel()
-		// if insertErr != nil {
-		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "order item was not created"})
-		// 	return
-		// }
-
-		// defer cancel()
-		// c.JSON(http.StatusOK, result)
-
+		if order.TableID != 0 {
+			tableDetails := dbConn.QueryRowContext(ctx, "SELECT id FROM tables WHERE id = ?", order.TableID)
+			if err := tableDetails.Scan(&table.ID); err != nil {
+				if err == sql.ErrNoRows {
+					c.JSON(http.StatusNotFound, gin.H{"message": "Table not found"})
+					return
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details", "err": err.Error()})
+				return
+			}
+		}
+		now := time.Now()
+		order.CreatedAt = now
+		order.UpdatedAt = now
+		result, err := dbConn.ExecContext(ctx, "INSERT INTO orders (order_date, created_at, updated_at, table_id) VALUES (?, ?, ?, ?)",
+			order.OrderDate, order.CreatedAt, order.UpdatedAt, order.TableID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert order", "err": err.Error()})
+			return
+		}
+		orderID, err := result.LastInsertId()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get order ID", "err": err.Error()})
+			return
+		}
+		order.ID = orderID
+		c.JSON(http.StatusOK, gin.H{"message": "Food item created successfully", "item": order})
 	}
 }
 
 func UpdateOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 
-		// var table models.Table
-		// var order models.Order
+		var table models.Table
+		var order models.Order
 
-		// var updateObj primitive.D
+		orderID := c.Param("order_id")
+		defer cancel()
+		var dbConn, dbErr = db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
+		}
 
-		// orderID := c.Param("order_id")
+		if err := c.BindJSON(&order); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 
-		// if err := c.BindJSON(&order); err != nil {
-		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		// 	defer cancel()
-		// 	return
-		// }
+		if order.TableID != 0 {
+			tableDetails := dbConn.QueryRowContext(ctx, "SELECT id FROM tables WHERE id = ?", order.TableID)
+			if err := tableDetails.Scan(&table.ID); err != nil {
+				if err == sql.ErrNoRows {
+					c.JSON(http.StatusNotFound, gin.H{"message": "Table not found"})
+					return
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details", "err": err.Error()})
+				return
+			}
+		}
 
-		// if order.TableID != nil {
-		// 	err := tableCollection.FindOne(ctx, bson.M{"table_id": order.TableID}).Decode(&table)
-		// 	defer cancel()
-		// 	if err != nil {
-		// 		if err == mongo.ErrNoDocuments {
-		// 			c.JSON(http.StatusNotFound, gin.H{
-		// 				"message": "Table data not found",
-		// 			})
-		// 			return
-		// 		}
-		// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching table details"})
-		// 		return
-		// 	}
-		// 	updateObj = append(updateObj, bson.E{Key: "table_id", Value: order.TableID})
-		// }
+		now := time.Now()
+		query := "UPDATE orders SET updated_at=? "
+		values := []interface{}{now}
+		if order.TableID != 0 {
+			query += ", table_id=? "
+			values = append(values, order.TableID)
+		}
 
-		// order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		// updateObj = append(updateObj, bson.E{Key: "updated_at", Value: order.UpdatedAt})
+		if order.OrderDate != nil {
+			query += ", order_date=? "
+			values = append(values, order.OrderDate)
+		}
 
-		// upsert := true
-		// filter := bson.M{"order_id": orderID}
-		// opt := options.UpdateOptions{
-		// 	Upsert: &upsert,
-		// }
-
-		// result, err := orderCollection.UpdateOne(
-		// 	ctx, filter, bson.D{
-		// 		{Key: "$set", Value: updateObj},
-		// 	},
-		// 	&opt,
-		// )
-
-		// defer cancel()
-		// if err != nil {
-		// 	msg := "order item update failed"
-		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
-		// 	return
-		// }
-		// c.JSON(http.StatusOK, result)
-
+		query += "WHERE id =?"
+		values = append(values, orderID)
+		result, err := dbConn.ExecContext(ctx, query, values...)
+		if err != nil {
+			ISEInjection(c, err, "Error in updating food")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Food updated successfully", "item": result})
 	}
 }
 

@@ -30,6 +30,16 @@ func ISEInjection(c *gin.Context, err error, errorMessage string) bool {
 	}
 	return false
 }
+
+// Function to handle database connection errors
+func BadRequestInjection(c *gin.Context, err error, errorMessage string) bool {
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errorMessage, "errMsg": err.Error()})
+		return true
+	}
+	return false
+}
+
 func GetMenus() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
