@@ -65,7 +65,7 @@ CREATE TABLE `order_item` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
-CREATE TABLE `table` (
+CREATE TABLE `tables` (
   `id` int NOT NULL AUTO_INCREMENT,
   `number_of_guests` varchar(45) NOT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -91,3 +91,6 @@ CREATE TABLE `user` (
   UNIQUE KEY `phone_UNIQUE` (`phone`),
   UNIQUE KEY `email_UNIQUE` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+ALTER TABLE `restaurant`.`tables` 
+CHANGE COLUMN `number_of_guests` `number_of_guests` INT NOT NULL ;

@@ -60,8 +60,7 @@ func GetMenus() gin.HandlerFunc {
 			LIMIT ? OFFSET ?
 		`
 		rows, err := dbConn.QueryContext(ctx, query, recordPerPage, startIndex)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching menus"})
+		if ISEInjection(c, err, "Error fetching menus") {
 			return
 		}
 		defer rows.Close()
@@ -100,7 +99,7 @@ func GetMenus() gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{
 			"total_count": totalCount,
-			"menus":       menus,
+			"items":       menus,
 		})
 	}
 }

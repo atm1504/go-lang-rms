@@ -2,137 +2,208 @@ package controller
 
 import (
 	"context"
-	"log"
+	"database/sql"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
-	"atm1504.in/rms/database"
+	db "atm1504.in/rms/database"
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-var tableCollection *mongo.Collection = database.OpenCollection(database.Client, "table")
 
 func GetTables() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-
-		result, err := tableCollection.Find(context.TODO(), bson.M{})
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing table items"})
+
+		recordPerPage, err := strconv.Atoi(c.DefaultQuery("recordPerPage", "10"))
+		if err != nil || recordPerPage < 1 {
+			recordPerPage = 10
 		}
-		var allTables []bson.M
-		if err = result.All(ctx, &allTables); err != nil {
-			log.Fatal(err)
+
+		page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+		if err != nil || page < 1 {
+			page = 1
 		}
-		c.JSON(http.StatusOK, allTables)
+		startIndex := (page - 1) * recordPerPage
+
+		dbConn, dbErr := db.DBInstanceSql()
+
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
+		}
+		defer dbConn.Close()
+		query := `SELECT COUNT(*) OVER(), id, number_of_guests, table_number, created_at, updated_at FROM tables LIMIT ? OFFSET ?`
+
+		fmt.Println(query)
+		tableRows, err := dbConn.QueryContext(ctx, query, recordPerPage, startIndex)
+		if ISEInjection(c, err, "Error fetching tables") {
+			return
+		}
+		defer tableRows.Close()
+
+		var totalCount int
+		var tableList []models.Table
+		for tableRows.Next() {
+			var table models.Table
+			var createdAtStr string
+			var updatedAtStr string
+			err := tableRows.Scan(&totalCount, &table.ID, &table.NumberOfGuests, &table.TableNumber, &createdAtStr, &updatedAtStr)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching tables"})
+				return
+			}
+
+			createdAt, err3 := ParseTime(createdAtStr)
+			updatedAt, err4 := ParseTime(updatedAtStr)
+
+			if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+				return
+			}
+
+			table.CreatedAt = createdAt
+			table.UpdatedAt = updatedAt
+
+			tableList = append(tableList, table)
+		}
+
+		if err = tableRows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error during rows iteration"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"total_count": totalCount,
+			"items":       tableList,
+		})
+
 	}
 }
 
 func GetTable() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		tableID := c.Param("table_id")
-		var table models.Table
-
-		err := tableCollection.FindOne(ctx, bson.M{"table_id": tableID}).Decode(&table)
 		defer cancel()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while fetching the tables"})
+		tableID := c.Param("table_id")
+
+		var dbConn, dbErr = db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
 		}
+
+		var table models.Table
+		var createdAtStr string
+		var updatedAtStr string
+		row := dbConn.QueryRowContext(ctx, "SELECT id, number_of_guests, table_number, created_at, updated_at  FROM tables WHERE id = ?", tableID)
+		if err := row.Scan(&table.ID, &table.NumberOfGuests, &table.TableNumber, &createdAtStr, &updatedAtStr); err != nil {
+			if err == sql.ErrNoRows {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Table not found"})
+				return
+			}
+			fmt.Println(err)
+			ISEInjection(c, err, "Error in fetching table details")
+			return
+		}
+
+		createdAt, err3 := ParseTime(createdAtStr)
+		updatedAt, err4 := ParseTime(updatedAtStr)
+		if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+			return
+		}
+
+		table.CreatedAt = createdAt
+		table.UpdatedAt = updatedAt
+
 		c.JSON(http.StatusOK, table)
 	}
 }
 
 func CreateTable() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		defer cancel()
+		var dbConn, dbErr = db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
+		}
 
-		// var table models.Table
+		var table models.Table
 
-		// if err := c.BindJSON(&table); err != nil {
-		// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		// 	defer cancel()
-		// 	return
-		// }
+		if err := c.BindJSON(&table); err != nil {
+			defer cancel()
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 
-		// validationErr := validate.Struct(table)
+		validationErr := validate.Struct(table)
 
-		// if validationErr != nil {
-		// 	c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
-		// 	defer cancel()
-		// 	return
-		// }
+		if validationErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Error()})
+			defer cancel()
+			return
+		}
 
-		// table.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-		// table.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		now := time.Now()
+		table.CreatedAt = now
+		table.UpdatedAt = now
 
-		// table.ID = primitive.NewObjectID()
-		// table.TableID = table.ID.Hex()
+		result, err := dbConn.ExecContext(ctx, "INSERT INTO tables (number_of_guests, table_number, created_at, updated_at) VALUES (?, ?, ?, ?)",
+			table.NumberOfGuests, table.TableNumber, table.CreatedAt, table.UpdatedAt)
 
-		// result, insertErr := tableCollection.InsertOne(ctx, table)
-		// defer cancel()
-		// if insertErr != nil {
-		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Table item was not created"})
-		// 	return
-		// }
-		// c.JSON(http.StatusOK, result)
+		if ISEInjection(c, err, "Failed to insert table item") {
+			return
+		}
+		tableID, err := result.LastInsertId()
 
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get table item ID"})
+			return
+		}
+
+		table.ID = tableID
+		c.JSON(http.StatusOK, gin.H{"message": "table item created successfully", "table": table})
 	}
 }
 
 func UpdateTable() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-
+		defer cancel()
+		var dbConn, dbErr = db.DBInstanceSql()
+		if ISEInjection(c, dbErr, "Error connecting to database") {
+			return
+		}
 		var table models.Table
 		tableID := c.Param("table_id")
 
 		if err := c.BindJSON(&table); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			defer cancel()
+
 			return
 		}
 
-		var updateObj primitive.D
+		updateQuery := "UPDATE tables SET updated_at=? "
+		updateValues := []interface{}{time.Now()}
 
 		if table.NumberOfGuests != nil {
-			updateObj = append(updateObj, bson.E{Key: "number_of_guests", Value: table.NumberOfGuests})
+			updateQuery += ", number_of_guests =? "
+			updateValues = append(updateValues, table.NumberOfGuests)
 		}
-
 		if table.TableNumber != nil {
-			updateObj = append(updateObj, bson.E{Key: "table_number", Value: table.TableNumber})
+			updateQuery += ", table_number =? "
+			updateValues = append(updateValues, table.TableNumber)
 		}
 
-		table.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
+		updateQuery += "WHERE id =?"
+		updateValues = append(updateValues, tableID)
 
-		upsert := true
-		opt := options.UpdateOptions{
-			Upsert: &upsert,
-		}
-
-		filter := bson.M{"table_id": tableID}
-
-		result, err := tableCollection.UpdateOne(
-			ctx,
-			filter,
-			bson.D{
-				{Key: "$set", Value: updateObj},
-			},
-			&opt,
-		)
-
-		defer cancel()
+		_, err := dbConn.ExecContext(ctx, updateQuery, updateValues...)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "table item update failed"})
+			ISEInjection(c, err, "Error in updating table")
 			return
 		}
-
-		c.JSON(http.StatusOK, result)
+		c.JSON(http.StatusOK, gin.H{"message": "Table updated successfully"})
 	}
 }

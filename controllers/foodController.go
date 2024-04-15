@@ -85,7 +85,7 @@ func GetFoods() gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{
 			"total_count": totalCount,
-			"foods":       foodList,
+			"items":       foodList,
 		})
 
 	}
