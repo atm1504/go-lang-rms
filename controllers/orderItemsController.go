@@ -127,7 +127,7 @@ func GetOrderItemsByOrder() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		orderID := c.Param("order_id")
 
-		allOrderItems, err := ItemsByOrder(c, orderID)
+		allOrderItems, err := ItemsByOrder(c, c.GetInt64(orderID))
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "error occured while listing order items by order ID"})
@@ -137,7 +137,7 @@ func GetOrderItemsByOrder() gin.HandlerFunc {
 	}
 }
 
-func ItemsByOrder(c *gin.Context, orderID string) (OrderItems []primitive.M, err error) {
+func ItemsByOrder(c *gin.Context, orderID int64) (OrderItems []primitive.M, err error) {
 	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 	dbConn, dbErr := db.DBInstanceSql()
