@@ -3,34 +3,42 @@ package helper
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
-	"atm1504.in/rms/database"
+	db "atm1504.in/rms/database"
 	jwt "github.com/dgrijalva/jwt-go"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/gin-gonic/gin"
 )
 
 type SignedDetails struct {
 	Email     string
 	FirstName string
 	LastName  string
-	UID       string
+	Phone     string
 	jwt.StandardClaims
 }
 
 var SecretKey string = os.Getenv("SECRET_KEY")
-var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
 
-func GenerateAllTokens(email string, firstName string, lastName string, uid string) (signedToken string, signedRefreshToken string, err error) {
+// Function to handle database connection errors
+func ISEInjection(c *gin.Context, err error, errorMessage string) bool {
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage, "errMsg": err.Error()})
+		return true
+	}
+	return false
+}
+
+// var userCollection *mongo.Collection = database.OpenCollection(database.Client, "user")
+
+func GenerateAllTokens(email string, firstName string, lastName string, phone string) (signedToken string, signedRefreshToken string, err error) {
 	claims := &SignedDetails{
 		Email:     email,
 		FirstName: firstName,
 		LastName:  lastName,
-		UID:       uid,
+		Phone:     phone,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: time.Now().Local().Add(time.Hour * time.Duration(24)).Unix(),
 		},
@@ -57,34 +65,20 @@ func GenerateAllTokens(email string, firstName string, lastName string, uid stri
 	return token, refreshToken, err
 }
 
-func UpdateAllTokens(signedToken string, signedRefreshToken string, userId string) {
+func UpdateAllTokens(signedToken string, signedRefreshToken string, userId int64) {
 	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-	var updateObj primitive.D
-
-	updateObj = append(updateObj, bson.E{Key: "token", Value: signedToken})
-	updateObj = append(updateObj, bson.E{Key: "refresh_token", Value: signedRefreshToken})
-
-	Updated_at, _ := time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-	updateObj = append(updateObj, bson.E{Key: "updated_at", Value: Updated_at})
-
-	upsert := true
-	filter := bson.M{"user_id": userId}
-	opt := options.UpdateOptions{
-		Upsert: &upsert,
-	}
-
-	_, err := userCollection.UpdateOne(
-		ctx,
-		filter,
-		bson.D{
-			{Key: "$set", Value: updateObj},
-		},
-		&opt,
-	)
 	defer cancel()
-
+	dbConn, dbErr := db.DBInstanceSql()
+	if dbErr != nil {
+		log.Panic(dbErr.Error())
+		return
+	}
+	defer dbConn.Close()
+	query := "UPDATE user SET updated_at=?, token=?, refresh_token=? WHERE id=?"
+	values := []interface{}{time.Now(), signedToken, signedRefreshToken, userId}
+	_, err := dbConn.ExecContext(ctx, query, values...)
 	if err != nil {
-		log.Panic(err)
+		log.Panic(dbErr.Error())
 		return
 	}
 }

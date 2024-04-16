@@ -10,6 +10,8 @@ import (
 	"time"
 
 	db "atm1504.in/rms/database"
+	helper "atm1504.in/rms/helpers"
+
 	"atm1504.in/rms/models"
 
 	"github.com/gin-gonic/gin"
@@ -36,7 +38,7 @@ func GetFoods() gin.HandlerFunc {
 
 		dbConn, dbErr := db.DBInstanceSql()
 
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer dbConn.Close()
@@ -69,7 +71,7 @@ func GetFoods() gin.HandlerFunc {
 			createdAt, err3 := ParseTime(createdAtStr)
 			updatedAt, err4 := ParseTime(updatedAtStr)
 
-			if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+			if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
 				return
 			}
 
@@ -101,7 +103,7 @@ func GetFood() gin.HandlerFunc {
 		foodID := c.Param("food_id")
 
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 
@@ -115,12 +117,12 @@ func GetFood() gin.HandlerFunc {
 				return
 			}
 			fmt.Println(err)
-			ISEInjection(c, err, "Error in fetching menu details")
+			helper.ISEInjection(c, err, "Error in fetching menu details")
 			return
 		}
 		createdAt, err3 := ParseTime(createdAtStr)
 		updatedAt, err4 := ParseTime(updatedAtStr)
-		if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+		if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
 			return
 		}
 
@@ -135,7 +137,7 @@ func CreateFood() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 
@@ -201,7 +203,7 @@ func UpdateFood() gin.HandlerFunc {
 
 		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 
@@ -238,7 +240,7 @@ func UpdateFood() gin.HandlerFunc {
 					c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})
 					return
 				}
-				ISEInjection(c, err, "Error in fetching menu details")
+				helper.ISEInjection(c, err, "Error in fetching menu details")
 				return
 			}
 			query += ", menu_id =? "
@@ -250,7 +252,7 @@ func UpdateFood() gin.HandlerFunc {
 
 		_, err := dbConn.ExecContext(ctx, query, values...)
 		if err != nil {
-			ISEInjection(c, err, "Error in updating food")
+			helper.ISEInjection(c, err, "Error in updating food")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Food updated successfully"})

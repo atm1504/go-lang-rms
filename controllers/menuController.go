@@ -9,6 +9,7 @@ import (
 	"time"
 
 	db "atm1504.in/rms/database"
+	helper "atm1504.in/rms/helpers"
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 )
@@ -22,14 +23,14 @@ func ParseTime(timeStr string) (time.Time, error) {
 	return parsedTime, nil
 }
 
-// Function to handle database connection errors
-func ISEInjection(c *gin.Context, err error, errorMessage string) bool {
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage, "errMsg": err.Error()})
-		return true
-	}
-	return false
-}
+// // Function to handle database connection errors
+// func ISEInjection(c *gin.Context, err error, errorMessage string) bool {
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": errorMessage, "errMsg": err.Error()})
+// 		return true
+// 	}
+// 	return false
+// }
 
 // Function to handle database connection errors
 func BadRequestInjection(c *gin.Context, err error, errorMessage string) bool {
@@ -58,7 +59,7 @@ func GetMenus() gin.HandlerFunc {
 
 		dbConn, dbErr := db.DBInstanceSql()
 
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer dbConn.Close()
@@ -70,7 +71,7 @@ func GetMenus() gin.HandlerFunc {
 			LIMIT ? OFFSET ?
 		`
 		rows, err := dbConn.QueryContext(ctx, query, recordPerPage, startIndex)
-		if ISEInjection(c, err, "Error fetching menus") {
+		if helper.ISEInjection(c, err, "Error fetching menus") {
 			return
 		}
 		defer rows.Close()
@@ -120,7 +121,7 @@ func GetMenu() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		// defer dbConn.Close()
@@ -216,7 +217,7 @@ func UpdateMenu() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 		db, err := db.DBInstanceSql()
-		if ISEInjection(c, err, "Error connecting to database") {
+		if helper.ISEInjection(c, err, "Error connecting to database") {
 			return
 		}
 		defer db.Close()

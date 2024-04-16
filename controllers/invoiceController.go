@@ -8,6 +8,8 @@ import (
 	"time"
 
 	db "atm1504.in/rms/database"
+	helper "atm1504.in/rms/helpers"
+
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 )
@@ -41,7 +43,7 @@ func GetInvoices() gin.HandlerFunc {
 
 		dbConn, dbErr := db.DBInstanceSql()
 
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer dbConn.Close()
@@ -72,7 +74,7 @@ func GetInvoices() gin.HandlerFunc {
 			createdAt, err3 := ParseTime(createdAtStr)
 			updatedAt, err4 := ParseTime(updatedAtStr)
 
-			if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+			if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
 				return
 			}
 			invoice.CreatedAt = createdAt
@@ -97,7 +99,7 @@ func GetInvoice() gin.HandlerFunc {
 		defer cancel()
 
 		dbConn, dbErr := db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer dbConn.Close()
@@ -113,12 +115,12 @@ func GetInvoice() gin.HandlerFunc {
 				c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})
 				return
 			}
-			ISEInjection(c, err, "Error in fetching menu details")
+			helper.ISEInjection(c, err, "Error in fetching menu details")
 			return
 		}
 		createdAt, err3 := ParseTime(createdAtStr)
 		updatedAt, err4 := ParseTime(updatedAtStr)
-		if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+		if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
 			return
 		}
 
@@ -161,7 +163,7 @@ func CreateInvoice() gin.HandlerFunc {
 		}
 
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer cancel()
@@ -223,7 +225,7 @@ func UpdateInvoice() gin.HandlerFunc {
 		}
 
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer cancel()
@@ -246,7 +248,7 @@ func UpdateInvoice() gin.HandlerFunc {
 
 		result, err := dbConn.ExecContext(ctx, query, values...)
 		if err != nil {
-			ISEInjection(c, err, "Error in updating invoice")
+			helper.ISEInjection(c, err, "Error in updating invoice")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Invoice updated successfully", "items": result})

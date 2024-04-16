@@ -9,6 +9,8 @@ import (
 	"time"
 
 	db "atm1504.in/rms/database"
+	helper "atm1504.in/rms/helpers"
+
 	"atm1504.in/rms/models"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -37,7 +39,7 @@ func GetOrderItems() gin.HandlerFunc {
 		startIndex := (page - 1) * recordPerPage
 		dbConn, dbErr := db.DBInstanceSql()
 
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		defer dbConn.Close()
@@ -45,7 +47,7 @@ func GetOrderItems() gin.HandlerFunc {
 
 		fmt.Println(query)
 		orderRows, err := dbConn.QueryContext(ctx, query, recordPerPage, startIndex)
-		if ISEInjection(c, err, "Error fetching order items") {
+		if helper.ISEInjection(c, err, "Error fetching order items") {
 			return
 		}
 		defer orderRows.Close()
@@ -62,7 +64,7 @@ func GetOrderItems() gin.HandlerFunc {
 			}
 			createdAt, err3 := ParseTime(createdAtStr)
 			updatedAt, err4 := ParseTime(updatedAtStr)
-			if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+			if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
 				return
 			}
 			orderObj.CreatedAt = createdAt
@@ -91,7 +93,7 @@ func GetOrderItem() gin.HandlerFunc {
 		fmt.Println("Order id is: ", orderItemID)
 
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 
@@ -105,14 +107,14 @@ func GetOrderItem() gin.HandlerFunc {
 				return
 			}
 			fmt.Println(err)
-			ISEInjection(c, err, "Error in fetching order item details")
+			helper.ISEInjection(c, err, "Error in fetching order item details")
 			return
 		}
 
 		createdAt, err3 := ParseTime(createdAtStr)
 		updatedAt, err4 := ParseTime(updatedAtStr)
 
-		if ISEInjection(c, err3, "Error parsing time strings") || ISEInjection(c, err4, "Error parsing time strings") {
+		if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
 			return
 		}
 
@@ -141,7 +143,7 @@ func ItemsByOrder(c *gin.Context, orderID int64) (OrderItems []primitive.M, err 
 	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 	dbConn, dbErr := db.DBInstanceSql()
-	if ISEInjection(c, dbErr, "Error connecting to database") {
+	if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 		return
 	}
 	defer dbConn.Close()
@@ -169,7 +171,7 @@ func ItemsByOrder(c *gin.Context, orderID int64) (OrderItems []primitive.M, err 
 		var price *float64
 
 		err = orderItemsByRow.Scan(&id, &quantity, &foodID, &orderID, &tableNumber, &numberOfGuests, &price, &name, &foodImage)
-		if ISEInjection(c, err, "Error scanning order items") {
+		if helper.ISEInjection(c, err, "Error scanning order items") {
 			return nil, err
 		}
 		item := primitive.M{
@@ -194,7 +196,7 @@ func CreateOrderItem() gin.HandlerFunc {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 		var orderItemPack OrderItemPack
@@ -226,12 +228,12 @@ func CreateOrderItem() gin.HandlerFunc {
 			orderItemsToBeInserted = append(orderItemsToBeInserted, orderItem)
 		}
 		tx, txErr := dbConn.BeginTx(ctx, nil)
-		if ISEInjection(c, txErr, "Error connecting while initiating a database transaction") {
+		if helper.ISEInjection(c, txErr, "Error connecting while initiating a database transaction") {
 			return
 		}
 		stmt, stmtErr := tx.PrepareContext(ctx, "INSERT INTO order_item (quantity, unit_price, created_at, updated_at, food_id, order_id) VALUES (?, ?, ?, ?, ?, ?)")
 
-		if ISEInjection(c, stmtErr, "Error in transaction statement") {
+		if helper.ISEInjection(c, stmtErr, "Error in transaction statement") {
 			tx.Rollback()
 			defer cancel()
 			return
@@ -271,7 +273,7 @@ func UpdateOrderItem() gin.HandlerFunc {
 
 		defer cancel()
 		var dbConn, dbErr = db.DBInstanceSql()
-		if ISEInjection(c, dbErr, "Error connecting to database") {
+		if helper.ISEInjection(c, dbErr, "Error connecting to database") {
 			return
 		}
 
@@ -302,7 +304,7 @@ func UpdateOrderItem() gin.HandlerFunc {
 		values = append(values, orderItemID)
 		result, err := dbConn.ExecContext(ctx, query, values...)
 		if err != nil {
-			ISEInjection(c, err, "Error in updating food")
+			helper.ISEInjection(c, err, "Error in updating food")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "Order item updated successfully", "item": result})
