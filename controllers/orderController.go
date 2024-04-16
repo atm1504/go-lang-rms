@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -237,19 +238,18 @@ func UpdateOrder() gin.HandlerFunc {
 	}
 }
 
-func OrderItemOrderCreator(order models.Order) string {
-
-	// order.CreatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-	// order.UpdatedAt, _ = time.Parse(time.RFC3339, time.Now().Format(time.RFC3339))
-	// order.ID = primitive.NewObjectID()
-	// order.OrderID = order.ID.Hex()
-
-	// err, _ := orderCollection.InsertOne(ctx, order)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer cancel()
-
-	// return order.OrderID
-	return ""
+func OrderItemOrderCreator(order models.Order, currentTime time.Time, dbConn *sql.DB, ctx context.Context) int64 {
+	order.CreatedAt = currentTime
+	order.UpdatedAt = currentTime
+	result, err := dbConn.ExecContext(ctx, "INSERT INTO orders (order_date, created_at, updated_at, table_id) VALUES (?, ?, ?, ?)",
+		order.OrderDate, order.CreatedAt, order.UpdatedAt, order.TableID)
+	if err != nil {
+		log.Fatal(err)
+	}
+	orderID, err := result.LastInsertId()
+	if err != nil {
+		log.Fatal(err)
+	}
+	order.ID = orderID
+	return orderID
 }
