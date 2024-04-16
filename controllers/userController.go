@@ -144,7 +144,7 @@ func SignUp() gin.HandlerFunc {
 		defer cancel()
 
 		var emailPhoneCountValue int
-		emailPhoneCount := dbConn.QueryRowContext(ctx, "SELECT COUNT(*) as count FROM users WHERE email =? OR phone =?", user.Email, user.Phone)
+		emailPhoneCount := dbConn.QueryRowContext(ctx, "SELECT COUNT(*) as count FROM user WHERE email =? OR phone =?", user.Email, user.Phone)
 		if err := emailPhoneCount.Scan(&emailPhoneCountValue); err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})

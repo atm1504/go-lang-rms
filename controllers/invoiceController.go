@@ -66,19 +66,22 @@ func GetInvoices() gin.HandlerFunc {
 			var invoice models.Invoice
 			var createdAtStr string
 			var updatedAtStr string
-			err := invoiceRows.Scan(&totalCount, &invoice.ID, &invoice.OrderID, &invoice.PaymentMethod, &invoice.PaymentStatus, &invoice.PaymentDueDate, &createdAtStr, &updatedAtStr)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Error in fetching invoices"})
+			var paymentDueDateStr string
+			err := invoiceRows.Scan(&totalCount, &invoice.ID, &invoice.OrderID, &invoice.PaymentMethod, &invoice.PaymentStatus, &paymentDueDateStr, &createdAtStr, &updatedAtStr)
+
+			if helper.ISEInjection(c, err, "Error in fetching invoices") {
 				return
 			}
 			createdAt, err3 := ParseTime(createdAtStr)
 			updatedAt, err4 := ParseTime(updatedAtStr)
+			paymentDueDate, err2 := ParseTime(paymentDueDateStr)
 
-			if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
+			if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") || helper.ISEInjection(c, err2, "Error parsing time strings") {
 				return
 			}
 			invoice.CreatedAt = createdAt
 			invoice.UpdatedAt = updatedAt
+			invoice.PaymentDueDate = paymentDueDate
 			invoiceList = append(invoiceList, invoice)
 		}
 		if err = invoiceRows.Err(); err != nil {
@@ -109,8 +112,9 @@ func GetInvoice() gin.HandlerFunc {
 		var invoice models.Invoice
 		var createdAtStr string
 		var updatedAtStr string
+		var paymentDueDateStr string
 		row := dbConn.QueryRowContext(ctx, query, invoiceID)
-		if err := row.Scan(&invoice.ID, &invoice.OrderID, &invoice.PaymentMethod, &invoice.PaymentStatus, &invoice.PaymentDueDate, &createdAtStr, &updatedAtStr); err != nil {
+		if err := row.Scan(&invoice.ID, &invoice.OrderID, &invoice.PaymentMethod, &invoice.PaymentStatus, &paymentDueDateStr, &createdAtStr, &updatedAtStr); err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusNotFound, gin.H{"message": "Menu not found"})
 				return
@@ -120,12 +124,14 @@ func GetInvoice() gin.HandlerFunc {
 		}
 		createdAt, err3 := ParseTime(createdAtStr)
 		updatedAt, err4 := ParseTime(updatedAtStr)
-		if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") {
+		paymentDueDate, err2 := ParseTime(paymentDueDateStr)
+		if helper.ISEInjection(c, err3, "Error parsing time strings") || helper.ISEInjection(c, err4, "Error parsing time strings") || helper.ISEInjection(c, err2, "Error parsing time strings") {
 			return
 		}
 
 		invoice.CreatedAt = createdAt
 		invoice.UpdatedAt = updatedAt
+		invoice.PaymentDueDate = paymentDueDate
 
 		var invoiceView InvoiceViewFormat
 		allOrderItems, err := ItemsByOrder(c, invoice.OrderID)
@@ -196,17 +202,16 @@ func CreateInvoice() gin.HandlerFunc {
 			return
 		}
 
-		result, err := dbConn.ExecContext(ctx, "INSERT INTO invoices (order_id, payment_method, payment_status, payment_due_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+		result, err := dbConn.ExecContext(ctx, "INSERT INTO invoice (order_id, payment_method, payment_status, payment_due_date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
 			invoice.OrderID, invoice.PaymentMethod, invoice.PaymentStatus, invoice.PaymentDueDate, invoice.CreatedAt, invoice.UpdatedAt)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert invoice item"})
+		if helper.ISEInjection(c, err, "Failed to insert invoice item") {
 			return
 		}
 		invoiceID, err := result.LastInsertId()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get invoice item ID"})
+		if helper.ISEInjection(c, err, "Failed to get invoice item ID") {
 			return
 		}
+
 		invoice.ID = invoiceID
 		c.JSON(http.StatusOK, gin.H{"message": "Food item created successfully", "items": invoice})
 	}
